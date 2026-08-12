@@ -90,7 +90,17 @@ app.whenReady().then(async () => {
 });
 
 // Cleanup resources before quitting
+let quitHandled = false;
 app.on('before-quit', async (event) => {
+  // quitAndInstallIfReady() below drives its own app.quit(), which re-fires
+  // this same 'before-quit' listener. Without this guard that re-entrant
+  // call would preventDefault() again and loop forever instead of letting
+  // the quit (and the update install) actually complete.
+  if (quitHandled) {
+    return;
+  }
+  quitHandled = true;
+
   console.log('[Cleanup] Starting cleanup before quit...');
 
   // Prevent default quit to allow cleanup to complete
@@ -128,10 +138,16 @@ app.on('before-quit', async (event) => {
   } catch (error) {
     console.error('[Cleanup] Error during cleanup:', error);
   } finally {
-    // If an update finished downloading, quitAndInstall() handles quitting
-    // and installing itself. app.exit() below skips the 'quit' event
-    // autoInstallOnAppQuit relies on, so it must not run in that case.
-    if (!quitAndInstallIfReady()) {
+    // If an update finished downloading, quitAndInstallIfReady() installs it
+    // and drives its own quit; app.exit(0) below must not also run in that
+    // case. A failure here must still fall through to app.exit(0) so the
+    // process never hangs instead of quitting.
+    try {
+      if (!quitAndInstallIfReady()) {
+        app.exit(0);
+      }
+    } catch (error) {
+      console.error('[Update] quitAndInstall failed, forcing exit:', error);
       app.exit(0);
     }
   }

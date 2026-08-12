@@ -11,8 +11,12 @@ let updateReady = false;
 // instead of relying on autoInstallOnAppQuit's 'quit' listener, because
 // app.exit() (used there for its own cleanup flow) skips the 'quit' event
 // entirely -- so a downloaded update would otherwise never install.
+// quitAndInstall() itself drives Electron's normal app.quit() to actually
+// close the app, so this must only ever be called once per process -- the
+// caller is responsible for its own quit-handler re-entrancy guard.
 export function quitAndInstallIfReady() {
   if (!updateReady) return false;
+  updateReady = false;
   autoUpdater.quitAndInstall(true, true);
   return true;
 }
@@ -22,7 +26,10 @@ export function quitAndInstallIfReady() {
 // new version installs only on the next natural app restart.
 export function initAutoUpdater() {
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  // Install is triggered explicitly via quitAndInstallIfReady() from main.js's
+  // quit handler, not by electron-updater's own 'quit' listener -- running
+  // both would risk a double install attempt.
+  autoUpdater.autoInstallOnAppQuit = false;
 
   autoUpdater.on('checking-for-update', () => {
     console.log('[Update] Checking for update...');
