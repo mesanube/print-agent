@@ -1,4 +1,4 @@
-// MUST be the first import — populates process.env from .env so debug flags
+// MUST be the first import. Populates process.env from .env so debug flags
 // like PRINT_AGENT_DRY_RUN are visible to modules that read process.env at
 // load time (windows-printer.js, etc.).
 import './core/load-env.js';
@@ -16,7 +16,7 @@ import { initializeEventListeners } from './core/app-events.js';
 import { createTray, updateDockMenu } from './core/tray.js';
 import { autoSelectPrinter } from './printing/printer-manager.js';
 import { destroyPrintWindow } from './printing/windows-printer.js';
-import { initAutoUpdater } from './core/auto-updater.js';
+import { initAutoUpdater, quitAndInstallIfReady } from './core/auto-updater.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,7 +48,7 @@ app.whenReady().then(async () => {
     // Wait for i18next to be ready
     await i18next.ready;
 
-    // Always launch at login — not user-configurable.
+    // Always launch at login. Not user-configurable.
     app.setLoginItemSettings({
       openAtLogin: true,
       openAsHidden: false,
@@ -128,7 +128,11 @@ app.on('before-quit', async (event) => {
   } catch (error) {
     console.error('[Cleanup] Error during cleanup:', error);
   } finally {
-    // Now actually quit
-    app.exit(0);
+    // If an update finished downloading, quitAndInstall() handles quitting
+    // and installing itself. app.exit() below skips the 'quit' event
+    // autoInstallOnAppQuit relies on, so it must not run in that case.
+    if (!quitAndInstallIfReady()) {
+      app.exit(0);
+    }
   }
 });
