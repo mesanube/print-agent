@@ -48,6 +48,11 @@
     "directories": {
       "output": "dist"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "mesanube",
+      "repo": "print-agent"
+    },
     "files": [
       "src/**/*",
       "printerTestImage.png",
