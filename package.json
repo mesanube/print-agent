@@ -1,6 +1,6 @@
 {
   "name": "mesanube-print-agent",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Agente de impresión para Mesanube POS",
   "main": "src/main.js",
   "type": "module",
