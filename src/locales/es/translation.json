@@ -4,6 +4,8 @@
     "restartServer": "Reiniciar Servidor",
     "configurePrinter": "Configurar Impresora",
     "checkForUpdates": "Buscar Actualizaciones",
+    "checkingForUpdates": "Buscando actualizaciones",
+    "updateReadyToInstall": "Reinicia la aplicación para actualizarla",
     "language": "Idioma",
     "english": "Inglés",
     "spanish": "Español",

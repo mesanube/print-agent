@@ -15,6 +15,20 @@ export function checkForUpdatesManually() {
   checkForUpdates?.();
 }
 
+// Status pub/sub so the tray icon can reflect update activity without
+// auto-updater.js depending on tray.js. Statuses: 'idle' | 'checking' |
+// 'ready' (downloaded, waiting to install on restart).
+const statusListeners = new Set();
+
+export function onUpdateStatusChange(listener) {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
+}
+
+function setStatus(status) {
+  for (const listener of statusListeners) listener(status);
+}
+
 // If an update finished downloading, install it now and return true so the
 // caller can skip its normal exit path. main.js's quit handler must call this
 // instead of relying on autoInstallOnAppQuit's 'quit' listener, because
@@ -45,15 +59,18 @@ export function initAutoUpdater() {
   autoUpdater.autoInstallOnAppQuit = false;
 
   autoUpdater.on('checking-for-update', () => {
+    setStatus('checking');
     console.log('[Update] Checking for update...');
   });
   autoUpdater.on('update-available', (info) => {
     console.log(`[Update] Update available: ${info.version}`);
   });
   autoUpdater.on('update-not-available', () => {
+    setStatus('idle');
     console.log('[Update] No update available.');
   });
   autoUpdater.on('error', (error) => {
+    setStatus('idle');
     console.error('[Update] Error checking for update:', error);
   });
   autoUpdater.on('download-progress', (progress) => {
@@ -61,6 +78,7 @@ export function initAutoUpdater() {
   });
   autoUpdater.on('update-downloaded', (info) => {
     updateReady = true;
+    setStatus('ready');
     console.log(`[Update] Update ${info.version} downloaded. Will install on next restart.`);
   });
 

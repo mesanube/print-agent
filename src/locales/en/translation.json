@@ -4,6 +4,8 @@
     "restartServer": "Restart Server",
     "configurePrinter": "Configure Printer",
     "checkForUpdates": "Check for Updates",
+    "checkingForUpdates": "Checking for updates",
+    "updateReadyToInstall": "Restart the app to apply the update",
     "language": "Language",
     "english": "English",
     "spanish": "Spanish",
