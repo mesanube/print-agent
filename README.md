@@ -165,7 +165,11 @@ async function printReceiptFromPOS(orderPayload) {
 
 ## Downloads and Updates
 
-Windows installers are published as GitHub Releases on this repository. Download the latest `.exe` from the repository's Releases page and run it to install the agent.
+Windows installers are published as GitHub Releases on this repository. Download the latest `.exe` from the repository's Releases page, or use the direct link that always points to the current published release:
+
+```
+https://github.com/mesanube/print-agent/releases/latest/download/Mesanube-Impresora-Setup.exe
+```
 
 Once installed, the agent checks for new releases in the background and updates itself silently: a new version downloads without interrupting any active print job, and installs automatically the next time the app restarts naturally. No manual reinstall is required. Per-terminal settings (selected printer, register, template, logo, QR configuration) are preserved across updates.
 
