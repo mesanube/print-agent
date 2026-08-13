@@ -6,6 +6,14 @@ const { autoUpdater } = electronUpdater;
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // every 4 hours
 
 let updateReady = false;
+let checkForUpdates = null;
+
+// Manually triggers the same update check the startup/interval/wake paths
+// use (e.g. from the tray menu, for testing). No-op before initAutoUpdater()
+// has run (unpackaged dev builds never call it).
+export function checkForUpdatesManually() {
+  checkForUpdates?.();
+}
 
 // If an update finished downloading, install it now and return true so the
 // caller can skip its normal exit path. main.js's quit handler must call this
@@ -59,13 +67,13 @@ export function initAutoUpdater() {
   // checkForUpdates() rejects on failure in addition to emitting 'error';
   // the 'error' listener above is the single source of truth for logging,
   // so swallow the rejection here to avoid an unhandled promise rejection.
-  const check = () => autoUpdater.checkForUpdates().catch(() => {});
-  check();
-  setInterval(check, CHECK_INTERVAL_MS);
+  checkForUpdates = () => autoUpdater.checkForUpdates().catch(() => {});
+  checkForUpdates();
+  setInterval(checkForUpdates, CHECK_INTERVAL_MS);
 
   // The interval above only advances while the machine is awake, so a
   // cashier's computer that sleeps right after a check would otherwise wait
   // out the full interval again after waking, even if that's hours later.
   // Checking again on wake closes that gap.
-  powerMonitor.on('resume', check);
+  powerMonitor.on('resume', checkForUpdates);
 }

@@ -6,6 +6,7 @@ import { startServer, stopServer } from '../server/index.js';
 import { findAvailablePort } from '../shared/network-helpers.js';
 import i18next from './i18n.js';
 import { showStatus, changeLanguage } from './app-events.js';
+import { checkForUpdatesManually } from './auto-updater.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,6 +49,10 @@ export function createTray() {
           await restartServer();
         }
       },
+      ...(app.isPackaged ? [{
+        label: i18next.t('tray.checkForUpdates'),
+        click: () => checkForUpdatesManually()
+      }] : []),
       {
         label: i18next.t('tray.language'),
         submenu: [
