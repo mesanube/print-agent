@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Receipt</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 309px; /* Reduced to fit thermal printer's printable area (was 320px) */
+            font-family: monospace;
+            font-size: 13px;
+            color: #000; /* Sets all font to black */
+            font-weight: 600; /* Sets all font to bold */
+            overflow-x: hidden; /* Ensure no horizontal overflow scrollbar */
+            /* Explicitly remove any default body padding/margin that could push the content */
+            margin: 0;
+            padding: 0;
+        }
+        .receipt {
+            /* Added minimal horizontal padding to prevent content from touching the very edge,
+               but still contained within the 320px canvas (thanks to box-sizing: border-box) */
+            padding: 10px 5px; /* 10px top, 5px left/right, 120px bottom (increased for cutting margin) */
+            width: 100%; /* Use full available width (320px) */
+        }
+         .text-center {
+            text-align: center;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .header h3, .header p {
+            margin: 0;
+        }
+        .line {
+            border-top: 1px dashed #000;
+            margin: 10px 0;
+        }
+        .details-table {
+            width: 100%;
+        }
+        .details-table td {
+            padding: 1px 0;
+        }
+        .details-table .label {
+            text-align: left;
+        }
+        .details-table .value {
+            text-align: right;
+        }
+        .items-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        #items-container {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0 5px;
+        }
+        #items-container td:first-child {
+          padding-right: 10px;
+          word-wrap: break-word;
+          max-width: 200px;
+        }
+        #items-container td:last-child {
+          white-space: nowrap;
+        }
+        /* .item {
+            display: flex;
+            justify-content: space-between;
+            align-items: top;
+            margin: 3px 0;
+        }
+        .item .name {
+            width: 70%;
+            overflow-wrap: break-word;
+            min-width: 0;
+        }
+        .item .price {
+            width: 30%;
+            text-align: right;
+        } */
+        .total-line {
+            display: flex;
+            justify-content: space-between;
+            font-size: 20px;
+            margin-top: 5px;
+            padding-top: 5px;
+        }
+        .footer {
+            padding-bottom: 40px;
+        }
+        .footer p {
+            margin: 0;
+        }
+        .qr-code-container {
+            text-align: center;
+            margin: 10px 0;
+        }
+        .qr-code-placeholder {
+            display: inline-block;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ccc;
+            font-family: monospace;
+            font-size: 8px;
+        }
+        .logo-container {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .logo-container img {
+            max-width: 100%;
+            height: auto;
+        }
+        .spacer {
+            height: 220px; /* Increased to account for logo height and ensure footer stays above cut line */
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <!-- Logo placeholder -->
+        <div class="logo-container">
+            {{restaurant.logo}}
+        </div>
+
+        <div class="header text-center">
+            <h3>{{restaurant.name}}</h3>
+            <p>{{restaurant.address}}</p>
+        </div>
+
+        <div class="line"></div>
+
+        <table class="details-table">
+            <tbody>
+                <tr>
+                    <td class="label">Mesa:</td>
+                    <td class="value">{{order.table}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Mesero:</td>
+                    <td class="value">{{order.waiter}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Fecha:</td>
+                    <td class="value">{{order.date}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Hora:</td>
+                    <td class="value">{{order.time}}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="line"></div>
+
+        {{order.deliveryInfo}}
+
+        <table id="items-container">
+          {{order.items}}
+        </table>
+        
+        <div class="line"></div>
+
+        {{order.discountBlock}}
+
+        <div class="total-line">
+            <span>TOTAL</span>
+            <span>${{order.total}}</span>
+        </div>
+
+        <div class="line"></div>
+
+        <div class="footer text-center">
+            <p>¡Gracias por su compra!</p>
+            <p>TICKET NO VALIDO COMO FACTURA</p>
+        </div>
+        <div class="spacer"></div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Print Template</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 0;
+            width: 58mm; /* Thermal printer width */
+            font-size: 12px;
+        }
+        .receipt {
+            padding: 5px;
+        }
+        .center {
+            text-align: center;
+        }
+        .line {
+            border-bottom: 1px dashed #000;
+            margin: 5px 0;
+        }
+        .item {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+        }
+        .total {
+            font-weight: bold;
+            border-top: 1px solid #000;
+            margin-top: 5px;
+            padding-top: 5px;
+        }
+        .logo-container {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .logo-container img {
+            max-width: 100%;
+            height: auto;
+        }
+        .qr-code-container {
+            text-align: center;
+            margin: 10px 0;
+        }
+        .qr-code-placeholder {
+            display: inline-block;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ccc;
+            font-family: monospace;
+            font-size: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <div class="logo-container">
+            {{restaurant.logo}}
+        </div>
+
+        <div class="center">
+            <h3>MESANUBE POS</h3>
+            <p>Receipt Template</p>
+        </div>
+        
+        <div class="line"></div>
+        <div id="content">
+            <div class="center">
+                <p><strong>{{restaurant.name}}</strong></p>
+                <p>{{restaurant.address}}</p>
+            </div>
+            <div class="line"></div>
+ 
+           <p>Table: {{order.table}}</p>
+            <p>Waiter: {{order.waiter}}</p>
+            <p>Date: {{order.date}}</p>
+            <p>Time: {{order.time}}</p>
+            <div class="line"></div>
+            {{order.items}}
+            <div class="line"></div>
+           
+            <div class="total">
+                <span>TOTAL: ${{order.total}}</span>
+            </div>
+            {{order.notes}}
+        </div>
+
+        <div class="qr-code-container">
+            {{order.qrCode}}
+        </div>
+
+        
+        <div class="line"></div>
+        <div class="center">
+            <p>¡Gracias por su compra!</p>
+        </div>
+    </div>
+</body>
+</html>

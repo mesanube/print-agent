@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.35;
+      color: #000;
+      width: 100%;
+      padding: 4px 6px;
+    }
+    .center { text-align: center; }
+    .title { font-weight: bold; font-size: 15px; text-transform: uppercase; }
+    .muted { font-size: 12px; font-weight: bold;}
+    .divider { border-top: 1px dashed #000; margin: 6px 0; }
+    .divider-strong { border-top: 2px solid #000; margin: 6px 0; }
+    .section-title { font-weight: bold; text-transform: uppercase; margin-top: 6px; }
+    .row { display: flex; justify-content: space-between; align-items: baseline; font-weight: bold; }
+    .row .label { padding-right: 8px; word-break: break-word; }
+    .row .amount { white-space: nowrap; text-align: right; }
+    .row.sub .label { padding-left: 10px; }
+    .emph { font-weight: bold; }
+    .emph-lg { font-weight: bold; font-size: 15px; }
+    .line-meta { font-size: 13px; color: #000; font-weight: bold;}
+  </style>
+</head>
+<body>
+  {{restaurant.logo}}
+  {{content}}
+</body>
+</html>

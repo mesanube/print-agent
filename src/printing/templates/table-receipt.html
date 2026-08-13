@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Table Receipt</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 320px;
+            font-family: monospace;
+            font-size: 18px;
+            color: #000000 !important; /* Force black color */
+            font-weight: bold !important; /* Force bold font */
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+            background: white;
+        }
+        .receipt {
+            padding: 10px 5px;
+            width: 100%;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .logo-container {
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .restaurant-name {
+            font-size: 24px;
+            margin-bottom: 2px;
+        }
+        .restaurant-address {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .divider {
+            border-top: 2px solid #000;
+            margin: 8px 0;
+        }
+        .divider-thin {
+            border-top: 1px dashed #000;
+            margin: 6px 0;
+        }
+        .order-info {
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        .order-info table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .order-info td {
+            padding: 2px 0;
+            vertical-align: top;
+        }
+        .order-info .label {
+            width: 40%;
+        }
+        .order-info .value {
+            width: 60%;
+            text-align: right;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+        }
+        .items-table th {
+            text-align: left;
+            padding: 4px 2px;
+            border-bottom: 2px solid #000;
+        }
+        .items-table th:last-child {
+            text-align: right;
+        }
+        .items-table td {
+            padding: 3px 2px;
+            border-bottom: 1px solid #ddd;
+        }
+        .items-table td:last-child {
+            text-align: right;
+        }
+        .item-name {
+            width: 50%;
+        }
+        .item-quantity {
+            width: 15%;
+            text-align: center;
+        }
+        .item-price {
+            width: 20%;
+            text-align: right;
+        }
+        .item-total {
+            width: 15%;
+            text-align: right;
+        }
+        .total-section {
+            margin-top: 8px;
+            padding-top: 6px;
+            border-top: 2px solid #000;
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+        }
+        .grand-total {
+            font-size: 20px;
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px solid #000;
+        }
+        .notes-section {
+            margin: 8px 0;
+            padding: 6px;
+            background: #f8f8f8;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+        }
+        .notes-section strong {
+            display: block;
+            margin-bottom: 3px;
+        }
+        .qr-section {
+            text-align: center;
+            margin: 10px 0;
+            padding: 8px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .thank-you {
+            margin-top: 8px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <!-- Logo Section -->
+        <div class="logo-container">
+            {{restaurant.logo}}
+        </div>
+
+        <div class="header">
+            <div class="restaurant-name">{{restaurant.name}}</div>
+            <div class="restaurant-address">{{restaurant.address}}</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Order Information -->
+        <div class="order-info">
+            <table>
+                <tr>
+                    <td class="label">Table:</td>
+                    <td class="value">{{order.table}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Waiter:</td>
+                    <td class="value">{{order.waiter}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Date:</td>
+                    <td class="value">{{order.date}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Time:</td>
+                    <td class="value">{{order.time}}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="divider-thin"></div>
+
+        {{order.deliveryInfo}}
+
+        <!-- Items Table -->
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th class="item-name">Item</th>
+                    <th class="item-quantity">Qty</th>
+                    <th class="item-price">Price</th>
+                    <th class="item-total">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{order.items}}
+            </tbody>
+        </table>
+
+        <div class="divider-thin"></div>
+
+        <!-- Total Section -->
+        <div class="total-section">
+            {{order.discountBlock}}
+            <div class="total-row grand-total">
+                <span>TOTAL:</span>
+                <span>${{order.total}}</span>
+            </div>
+        </div>
+
+        <!-- QR Code Section -->
+        <div class="qr-section">
+            {{order.qrCode}}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="divider-thin"></div>
+            <div class="thank-you">Thank you for your visit!</div>
+            <div>We hope to see you again soon</div>
+        </div>
+    </div>
+</body>
+</html>

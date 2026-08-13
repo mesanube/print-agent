@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="settingsWindow.title">Configuración de Impresora</title>
+    <script src="https://unpkg.com/i18next/dist/umd/i18next.min.js"></script>
+    <!-- html2canvas - DISABLED (not needed without export function)
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; background-color: #f5f5f5; padding: 20px; user-select: none; }
+        .container { display: flex; gap: 24px; background: white; border-radius: 8px; padding: 24px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); max-width: 95%; width: 760px; margin: 0 auto; position: relative; }
+        .settings-column { flex: 1; min-width: 0; }
+        .preview-column { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+        h1 { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 20px; text-align: center; grid-column: 1 / -1; }
+        .section { margin-bottom: 20px; }
+        .settings-column .section > label, .preview-column > label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; color: #555; margin-bottom: 8px; }
+        .section > label .material-icons { font-size: 20px; }
+        .current-printer { background: #e8f4fd; border: 1px solid #b3d9f7; border-radius: 6px; padding: 12px; font-size: 14px; color: #0066cc; }
+        .custom-select-wrapper { position: relative; }
+        .custom-select-trigger { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; background: white; cursor: pointer; transition: border-color 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .custom-select-wrapper.disabled .custom-select-trigger { background: #f5f5f5; color: #999; cursor: not-allowed; }
+        .custom-select-trigger:hover, .custom-select-wrapper.open .custom-select-trigger { border-color: #007AFF; }
+        .custom-options { display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 6px; margin-top: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 100; max-height: 150px; overflow-y: auto; }
+        .custom-select-wrapper.open .custom-options { display: block; }
+        .custom-option { padding: 12px 16px; font-size: 14px; cursor: pointer; transition: background-color 0.2s; border-bottom: 1px solid #f0f0f0; }
+        .custom-option:last-child { border-bottom: none; }
+        .custom-option:hover { background-color: #f5f5f5; }
+        .custom-option.selected { background-color: #e8f4fd; font-weight: 500; }
+        .button-group { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+        button { flex: 1; padding: 12px 24px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color 0.2s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        button:hover:not(:disabled) { transform: translateY(-1px); }
+        button:active:not(:disabled) { transform: translateY(0); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-primary { background: #007AFF; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #0056b3; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover:not(:disabled) { background: #1e7e34; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover:not(:disabled) { background: #5a6268; }
+        .btn-cancel { background: #f8f9fa; color: #6c757d; border: 1px solid #dee2e6; }
+        .btn-cancel:hover:not(:disabled) { background: #e2e6ea; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover:not(:disabled) { background: #c82333; }
+        #template-preview { width: 320px; border: 1px solid #ddd; border-radius: 4px; background: #fff; height: auto; }
+        .loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; border-radius: 8px; }
+        .loading-overlay.hidden { display: none; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #007AFF; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { font-size: 16px; color: #555; font-weight: 500; }
+        .status-message { margin-top: 16px; padding: 12px; border-radius: 6px; font-size: 14px; text-align: center; }
+        .status-success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .status-error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .status-message.hidden { display: none; }
+        .logo-preview { text-align: center; margin: 10px 0; }
+        .logo-preview img { border: 1px solid #ddd; border-radius: 4px; padding: 4px; display: inline-block; }
+        .logo-controls { display: flex; gap: 8px; margin-top: 8px; }
+        .logo-controls button { flex: 1; padding: 8px 12px; font-size: 12px; }
+        .toggle-switch { display: flex; align-items: center; gap: 8px; }
+        .toggle-switch input[type="checkbox"] { width: 40px; height: 20px; appearance: none; background: #ddd; border-radius: 20px; position: relative; cursor: pointer; transition: background 0.3s; }
+        .toggle-switch input[type="checkbox"]:checked { background: #007AFF; }
+        .toggle-switch input[type="checkbox"]::before { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: transform 0.3s; }
+        .toggle-switch input[type="checkbox"]:checked::before { transform: translateX(20px); }
+        .logo-size-controls, .qrcode-size-controls { margin-top: 8px; }
+        .logo-size-slider, .qrcode-size-slider { width: 100%; margin: 10px 0; }
+        .logo-size-labels, .qrcode-size-labels { display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-top: 4px; }
+        .preview-info { margin-top: 8px; font-size: 12px; color: #666; text-align: center; }
+
+        /* OS-Specific Styles */
+        body.platform-darwin #template-section,
+        body.platform-darwin #logo-section,
+        body.platform-darwin #qrcode-section,
+        body.platform-darwin #cutter-section,
+        body.platform-darwin #save-template-btn,
+        body.platform-darwin #test-image-btn,
+        body.platform-darwin .preview-column {
+            display: none;
+        }
+
+        body.platform-darwin .container {
+            width: 400px;
+        }
+
+        body.platform-darwin .settings-column {
+            flex-basis: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="settings-column">
+            <h1 data-i18n="settingsWindow.title"></h1>
+            
+            <div class="section">
+                <label data-i18n="settingsWindow.currentPrinter"></label>
+                <div id="current-printer" class="current-printer" data-i18n="settingsWindow.loading"></div>
+            </div>
+            
+            <div class="section">
+                <label for="printer-select"><i class="material-icons">print</i><span data-i18n="settingsWindow.selectPrinter"></span></label>
+                <div id="printer-select-wrapper" class="custom-select-wrapper disabled">
+                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.loadingPrinters"></span><i class="material-icons">arrow_drop_down</i></div>
+                    <div class="custom-options"></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <label><i class="material-icons">straighten</i><span>Ancho del papel</span></label>
+                <div id="paper-width-wrapper" class="custom-select-wrapper">
+                    <div class="custom-select-trigger"><span>80mm</span><i class="material-icons">arrow_drop_down</i></div>
+                    <div class="custom-options">
+                        <div class="custom-option selected" data-value="80mm">80mm</div>
+                        <div class="custom-option" data-value="58mm">58mm</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TEMPLATE SELECTOR - DISABLED (Using modern-receipt.html as default)
+            <div class="section" id="template-section">
+                <label for="template-select"><i class="material-icons">description</i><span data-i18n="settingsWindow.selectTemplate"></span></label>
+                <div id="template-select-wrapper" class="custom-select-wrapper disabled">
+                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.loadingTemplates"></span><i class="material-icons">arrow_drop_down</i></div>
+                    <div class="custom-options"></div>
+                </div>
+            </div>
+            -->
+
+            <!-- <div class="section" id="logo-section">
+                <label><i class="material-icons">image</i><span data-i18n="settingsWindow.logoConfiguration"></span></label>
+                
+                <div class="toggle-switch">
+                    <input type="checkbox" id="logo-toggle" checked>
+                    <label for="logo-toggle" data-i18n="settingsWindow.enableLogo"></label>
+                </div>
+                
+                <div id="logo-preview" class="logo-preview">
+                    <div data-i18n="settingsWindow.noLogoSelected"></div>
+                </div>
+                <div class="logo-controls">
+                    <button id="select-logo-btn" class="btn-secondary" data-i18n="settingsWindow.selectLogo"><i class="material-icons">add_photo_alternate</i><span data-i18n="settingsWindow.selectLogo"></span></button>
+                    <button id="remove-logo-btn" class="btn-danger" data-i18n="settingsWindow.removeLogo" disabled><i class="material-icons">delete</i><span data-i18n="settingsWindow.removeLogo"></span></button>
+                </div>
+                
+                <div class="section">
+                    <label for="logo-size-slider"><i class="material-icons">photo_size_select_large</i><span data-i18n="settingsWindow.logoSize"></span> <span id="logo-size-value">50%</span></label>
+                    <div class="logo-size-controls">
+                        <input type="range" id="logo-size-slider" min="10" max="100" value="50" step="5" class="logo-size-slider">
+                        <div class="logo-size-labels">
+                            <span>10%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                </div>
+            </div> -->
+
+            <!-- QR CODE OPTIONS - DISABLED
+            <div class="section" id="qrcode-section">
+                <label><i class="material-icons">qr_code</i><span data-i18n="settingsWindow.qrCode"></span></label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="qrcode-toggle" checked>
+                    <label for="qrcode-toggle" data-i18n="settingsWindow.enableQrCode"></label>
+                </div>
+
+                <div class="section">
+                    <label for="qrcode-size-slider"><i class="material-icons">aspect_ratio</i><span data-i18n="settingsWindow.qrCodeSize"></span> <span id="qrcode-size-value">60%</span></label>
+                    <div class="qrcode-size-controls">
+                        <input type="range" id="qrcode-size-slider" min="20" max="100" value="60" step="5" class="qrcode-size-slider">
+                        <div class="qrcode-size-labels">
+                            <span>20%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            -->
+<!-- 
+            <div class="section" id="cutter-section">
+                <label><i class="material-icons">content_cut</i><span data-i18n="settingsWindow.cutter">Guillotina</span></label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="cutter-toggle" checked>
+                    <label for="cutter-toggle" data-i18n="settingsWindow.enableCutter">Enable Automatic Cut</label>
+                </div>
+            </div> -->
+
+            <!-- LANGUAGE PICKER - DISABLED
+            <div class="section">
+                <label for="language-select"><i class="material-icons">language</i><span data-i18n="tray.language"></span></label>
+                <div id="language-select-wrapper" class="custom-select-wrapper">
+                    <div class="custom-select-trigger"><span></span><i class="material-icons">arrow_drop_down</i></div>
+                    <div class="custom-options">
+                        <div class="custom-option" data-value="en"><span data-i18n="tray.english"></span></div>
+                        <div class="custom-option" data-value="es"><span data-i18n="tray.spanish"></span></div>
+                    </div>
+                </div>
+            </div>
+            -->
+
+            <div class="button-group">
+                <button id="save-printer-btn" class="btn-primary" data-i18n="settingsWindow.savePrinter" disabled><i class="material-icons">save</i><span data-i18n="settingsWindow.savePrinter"></span></button>
+                <!-- TEMPLATE SAVE BUTTON - DISABLED
+                <button id="save-template-btn" class="btn-primary" data-i18n="settingsWindow.saveTemplate" disabled><i class="material-icons">save</i><span data-i18n="settingsWindow.saveTemplate"></span></button>
+                -->
+                <button id="test-template-btn" class="btn-success" data-i18n="settingsWindow.testPrint" disabled><i class="material-icons">print</i><span data-i18n="settingsWindow.testPrint"></span></button>
+                <!-- TEST IMAGE AND EXPORT BUTTONS - DISABLED
+                <button id="test-image-btn" class="btn-secondary" data-i18n="settingsWindow.testImagePrint" disabled><i class="material-icons">image</i><span data-i18n="settingsWindow.testImagePrint"></span></button>
+                <button id="export-btn" class="btn-secondary" data-i18n="settingsWindow.export" disabled><i class="material-icons">save_alt</i><span data-i18n="settingsWindow.export">Export as Image</span></button>
+                -->
+                <button id="cancel-btn" class="btn-cancel" data-i18n="settingsWindow.cancel"><i class="material-icons">close</i><span data-i18n="settingsWindow.cancel"></span></button>
+             </div>
+            <div id="status-message" class="status-message hidden"></div>
+        </div>
+
+        <div class="preview-column">
+            <label><i class="material-icons">visibility</i><span data-i18n="settingsWindow.templatePreview"></span></label>
+            <iframe id="template-preview" src="about:blank"></iframe>
+            <div class="preview-info" id="preview-info">Content height: <span id="content-height">0px</span></div>
+        </div>
+    </div>
+
+    <div id="loading-overlay" class="loading-overlay"><div class="spinner"></div><div class="loading-text" data-i18n="settingsWindow.loadingPrinters"></div></div>
+
+    <script>
+        let currentPrinters = [];
+        let selectedPrinterName = null;
+        let selectedTemplateName = 'modern-receipt.html'; // FIXED: Using modern-receipt.html as default
+        let logoConfig = { logoPath: null, logoBase64: null, logoSize: 50, logoEnabled: true, qrCodeEnabled: true, qrCodeSize: 60, cutterEnabled: true, paperWidth: '80mm' };
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const statusMessage = document.getElementById('status-message');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const previewFrame = document.getElementById('template-preview');
+        const logoPreview = document.getElementById('logo-preview');
+        const selectLogoBtn = document.getElementById('select-logo-btn');
+        const removeLogoBtn = document.getElementById('remove-logo-btn');
+        const logoToggle = document.getElementById('logo-toggle');
+        // const qrcodeToggle = document.getElementById('qrcode-toggle'); // DISABLED
+        const cutterToggle = document.getElementById('cutter-toggle');
+        const paperWidthWrapper = document.getElementById('paper-width-wrapper');
+        const logoSizeSlider = document.getElementById('logo-size-slider');
+        const logoSizeValue = document.getElementById('logo-size-value');
+        // const qrcodeSizeSlider = document.getElementById('qrcode-size-slider'); // DISABLED
+        // const qrcodeSizeValue = document.getElementById('qrcode-size-value'); // DISABLED
+        const contentHeightSpan = document.getElementById('content-height');
+        const previewInfo = document.getElementById('preview-info');
+        // Buttons
+        const testTemplateBtn = document.getElementById('test-template-btn');
+        // const testImageBtn = document.getElementById('test-image-btn'); // DISABLED
+        // const exportBtn = document.getElementById('export-btn'); // DISABLED
+        // Printer elements
+        const currentPrinterDiv = document.getElementById('current-printer');
+        const savePrinterBtn = document.getElementById('save-printer-btn');
+        const printerSelectWrapper = document.getElementById('printer-select-wrapper');
+
+        // Template elements - DISABLED
+        // const saveTemplateBtn = document.getElementById('save-template-btn');
+        // const templateSelectWrapper = document.getElementById('template-select-wrapper');
+
+        // --- Core Functions ---
+        function updateContent() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                const i18nText = i18next.t(key);
+                const textSpan = el.querySelector('span');
+                if (textSpan) { textSpan.textContent = i18nText; } else { el.textContent = i18nText; }
+            });
+            // LANGUAGE PICKER - DISABLED
+            /*
+            const langWrapper = document.getElementById('language-select-wrapper');
+            const selectedLangOption = langWrapper.querySelector(`.custom-option[data-value="${i18next.language}"]`);
+            if (selectedLangOption) {
+                langWrapper.querySelector('.custom-select-trigger span').textContent = selectedLangOption.querySelector('span').textContent;
+                langWrapper.querySelectorAll('.custom-option').forEach(opt => opt.classList.remove('selected'));
+                selectedLangOption.classList.add('selected');
+            }
+            */
+        }
+
+        function setLoading(loading, textKey = 'settingsWindow.loadingPrinters') {
+            loadingOverlay.querySelector('.loading-text').textContent = i18next.t(textKey);
+            loadingOverlay.classList.toggle('hidden', !loading);
+            printerSelectWrapper.classList.toggle('disabled', loading);
+            // templateSelectWrapper.classList.toggle('disabled', loading); // DISABLED
+            const buttonsDisabled = loading || !selectedPrinterName;
+            testTemplateBtn.disabled = buttonsDisabled;
+            // testImageBtn.disabled = buttonsDisabled; // DISABLED
+            // exportBtn.disabled = loading || !selectedTemplateName; // DISABLED
+        }
+
+        function showStatus(message, type = 'success') {
+            statusMessage.textContent = message;
+            statusMessage.className = `status-message status-${type}`;
+            statusMessage.classList.remove('hidden');
+            setTimeout(() => { statusMessage.classList.add('hidden'); }, 5000);
+        }
+
+        function setPaperWidthDropdown(width) {
+            if (!paperWidthWrapper) return;
+            const trigger = paperWidthWrapper.querySelector('.custom-select-trigger span');
+            if (trigger) trigger.textContent = width;
+            paperWidthWrapper.querySelectorAll('.custom-option').forEach((opt) => {
+                opt.classList.toggle('selected', opt.dataset.value === width);
+            });
+        }
+
+        // --- Logo Management Functions ---
+        function updateLogoPreview() {
+            if (logoConfig.logoBase64) {
+                logoPreview.innerHTML = `<img src="${logoConfig.logoBase64}" alt="Restaurant Logo" style="width: ${logoConfig.logoSize}%; max-width: ${logoConfig.logoSize}%; height: auto; display: inline-block;">`;
+                removeLogoBtn.disabled = false;
+                
+                logoSizeSlider.value = logoConfig.logoSize;
+                logoSizeValue.textContent = `${logoConfig.logoSize}%`;
+            } else {
+                logoPreview.innerHTML = `<div>${i18next.t('settingsWindow.noLogoSelected')}</div>`;
+                removeLogoBtn.disabled = true;
+                
+                logoSizeSlider.value = 50;
+                logoSizeValue.textContent = '50%';
+            }
+
+            logoToggle.checked = logoConfig.logoEnabled;
+            // qrcodeToggle.checked = logoConfig.qrCodeEnabled; // DISABLED
+            cutterToggle.checked = logoConfig.cutterEnabled;
+            setPaperWidthDropdown(logoConfig.paperWidth || '80mm');
+            // qrcodeSizeSlider.value = logoConfig.qrCodeSize; // DISABLED
+            // qrcodeSizeValue.textContent = `${logoConfig.qrCodeSize}%`; // DISABLED
+            if (selectedTemplateName) {
+                updateTemplatePreview(selectedTemplateName);
+            }
+        }
+
+        async function loadLogoConfig() {
+            try {
+                logoConfig = await window.electronAPI.getLogoConfig();
+                updateLogoPreview();
+            } catch (error) {
+                console.error('Failed to load logo config:', error);
+            }
+        }
+
+        // --- Printer Logic ---
+        function updateCurrentPrinter(printerName) {
+            if (printerName) {
+                const printer = currentPrinters.find(p => p.name === printerName);
+                currentPrinterDiv.textContent = `${printer ? printer.displayName : printerName} ${i18next.t('settingsWindow.active')}`;
+            } else {
+                currentPrinterDiv.textContent = i18next.t('settingsWindow.noPrinterSelected');
+            }
+        }
+
+        function populatePrinters(printers, currentPrinter) {
+            const optionsContainer = printerSelectWrapper.querySelector('.custom-options');
+            const triggerSpan = printerSelectWrapper.querySelector('.custom-select-trigger span');
+            optionsContainer.innerHTML = '';
+
+            const selectAPrinterText = i18next.t('settingsWindow.selectAPrinter');
+            if (printers.length === 0) {
+                triggerSpan.textContent = i18next.t('settingsWindow.noPrintersFound');
+                printerSelectWrapper.classList.add('disabled');
+                return;
+            }
+
+            printerSelectWrapper.classList.remove('disabled');
+            triggerSpan.textContent = selectAPrinterText;
+
+            printers.forEach(printer => {
+                const option = document.createElement('div');
+                option.className = 'custom-option';
+                option.dataset.value = printer.name;
+                option.textContent = `${printer.displayName}${printer.isDefault ? ` ${i18next.t('settingsWindow.default')}` : ''}`;
+
+                if (printer.name === currentPrinter) {
+                    option.classList.add('selected');
+                    triggerSpan.textContent = option.textContent;
+                    selectedPrinterName = printer.name;
+                }
+
+                optionsContainer.appendChild(option);
+            });
+            const buttonsDisabled = !selectedPrinterName;
+            testTemplateBtn.disabled = buttonsDisabled;
+            // testImageBtn.disabled = buttonsDisabled; // DISABLED
+        }
+        
+        // --- Template Logic ---
+        async function updateTemplatePreview(templateName) {
+            if (!templateName) {
+                // exportBtn.disabled = true; // DISABLED
+                return;
+            };
+            // exportBtn.disabled = false; // DISABLED
+            try {
+                previewFrame.srcdoc = 'Loading preview...';
+                const result = await window.electronAPI.getTemplatePreviewHtml(templateName, logoConfig.qrCodeSize);
+                if (result.success) {
+                    previewFrame.srcdoc = result.html;
+                    // Wait for iframe to load and then get content height
+                    previewFrame.onload = function() {
+                        try {
+                            const iframeDoc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                            const contentHeight = iframeDoc.body.scrollHeight;
+                            contentHeightSpan.textContent = `${contentHeight}px`;
+
+                            // Auto-adjust iframe height to fit content
+                            previewFrame.style.height = `${contentHeight + 10}px`;
+                        } catch (e) {
+                            console.error('Could not measure content height:', e);
+                        }
+                    };
+                } else {
+                    previewFrame.srcdoc = `Error: ${result.error}`;
+                }
+            } catch (error) {
+                previewFrame.srcdoc = `Error: ${error.message}`;
+            }
+        }
+
+        // TEMPLATE SELECTOR - DISABLED (Using modern-receipt.html as default)
+        /*
+        async function loadTemplates() {
+            const { templates, defaultTemplate } = await window.electronAPI.getTemplates();
+            const optionsContainer = templateSelectWrapper.querySelector('.custom-options');
+            const triggerSpan = templateSelectWrapper.querySelector('.custom-select-trigger span');
+            optionsContainer.innerHTML = '';
+
+            const selectATemplateText = i18next.t('settingsWindow.selectATemplate');
+            if (templates.length === 0) {
+                triggerSpan.textContent = i18next.t('settingsWindow.noTemplatesFound');
+                templateSelectWrapper.classList.add('disabled');
+                return;
+            }
+
+            templateSelectWrapper.classList.remove('disabled');
+            triggerSpan.textContent = selectATemplateText;
+
+            templates.forEach(template => {
+                const option = document.createElement('div');
+                option.className = 'custom-option';
+                option.dataset.value = template;
+                option.textContent = template;
+
+                if (template === defaultTemplate) {
+                    option.classList.add('selected');
+                    triggerSpan.textContent = template;
+                    selectedTemplateName = template;
+                }
+                optionsContainer.appendChild(option);
+            });
+            if (defaultTemplate) { updateTemplatePreview(defaultTemplate); }
+        }
+        */
+
+        // --- NEW PRINTING & EXPORT LOGIC ---
+        async function executeTestPrint() {
+            if (!selectedPrinterName) {
+                showStatus(i18next.t('ipcMessages.noPrinterForTest'), 'error');
+                return;
+            }
+            setLoading(true, 'settingsWindow.printing');
+            try {
+                // This uses the correct, abstracted print method that works on all OS
+                const result = await window.electronAPI.testPrint();
+                if (result.success) {
+                    showStatus(result.message, 'success');
+                } else {
+                    showStatus(result.message, 'error');
+                }
+            } catch (error) {
+                console.error('Failed to execute test print:', error);
+                showStatus(`Test print failed: ${error.message}`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // BROWSE AND PRINT IMAGE - DISABLED
+        /*
+        async function browseAndPrintImage() {
+            if (!selectedPrinterName) {
+                showStatus(i18next.t('ipcMessages.noPrinterForTest'), 'error');
+                return;
+            }
+            setLoading(true, 'settingsWindow.printing');
+            try {
+                const result = await window.electronAPI.browseAndPrintImage();
+                if (result.success) {
+                    showStatus(result.message, 'success');
+                } else if (!result.canceled) { // Don't show error if user just canceled the dialog
+                    showStatus(result.message, 'error');
+                }
+            } catch (error) {
+                console.error('Failed to browse and print image:', error);
+                showStatus(`Error printing image: ${error.message}`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+        */
+
+        // EXPORT PREVIEW AS IMAGE - DISABLED
+        /*
+        async function exportPreviewAsImage() {
+            if (!selectedTemplateName) {
+                showStatus('Please select a template to export.', 'error');
+                return;
+            }
+            setLoading(true, 'settingsWindow.exporting');
+            try {
+                const iframeDoc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                const targetElement = iframeDoc.querySelector('.receipt') || iframeDoc.body;
+                const canvas = await html2canvas(targetElement, {
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    scale: 3
+                });
+                const dataUrl = canvas.toDataURL('image/png');
+                const result = await window.electronAPI.saveDataUrlAsImage(dataUrl);
+                if (result.success && !result.canceled) {
+                    showStatus(result.message, 'success');
+                } else if (!result.canceled) {
+                    showStatus(result.message, 'error');
+                }
+            } catch (error) {
+                console.error('Export failed:', error);
+                showStatus(`Export failed: ${error.message}`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+        */
+
+        // --- Event Listeners & Initialization ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            function initCustomSelect(wrapperId, onSelect) {
+                const wrapper = document.getElementById(wrapperId);
+                const options = wrapper.querySelector('.custom-options');
+                wrapper.querySelector('.custom-select-trigger').addEventListener('click', () => {
+                    if (!wrapper.classList.contains('disabled')) wrapper.classList.toggle('open');
+                });
+                options.addEventListener('click', (e) => {
+                    if (e.target.closest('.custom-option')) {
+                        const option = e.target.closest('.custom-option');
+                        onSelect(option);
+                        wrapper.querySelectorAll('.custom-option').forEach(opt => opt.classList.remove('selected'));
+                        option.classList.add('selected');
+                        wrapper.classList.remove('open');
+                    }
+                });
+            }
+
+            initCustomSelect('printer-select-wrapper', (option) => {
+                printerSelectWrapper.querySelector('.custom-select-trigger span').textContent = option.textContent;
+                selectedPrinterName = option.dataset.value;
+                savePrinterBtn.disabled = false;
+                testTemplateBtn.disabled = false;
+                // testImageBtn.disabled = false; // DISABLED
+            });
+            // TEMPLATE SELECTOR - DISABLED
+            /*
+            initCustomSelect('template-select-wrapper', (option) => {
+                templateSelectWrapper.querySelector('.custom-select-trigger span').textContent = option.textContent;
+                selectedTemplateName = option.dataset.value;
+                saveTemplateBtn.disabled = false;
+                updateTemplatePreview(selectedTemplateName);
+            });
+            */
+            // LANGUAGE PICKER - DISABLED
+            // initCustomSelect('language-select-wrapper', (option) => window.electronAPI.changeLanguage(option.dataset.value));
+            
+            window.addEventListener('click', (e) => {
+                document.querySelectorAll('.custom-select-wrapper.open').forEach(w => {
+                    if (!w.contains(e.target)) w.classList.remove('open');
+                });
+            });
+
+            // Paper width custom dropdown
+            initCustomSelect('paper-width-wrapper', async (option) => {
+                const width = option.dataset.value;
+                const previous = logoConfig.paperWidth || '80mm';
+                const result = await window.electronAPI.setPaperWidth(width);
+                if (result.success) {
+                    logoConfig.paperWidth = width;
+                    paperWidthWrapper.querySelector('.custom-select-trigger span').textContent = width;
+                    showStatus(`Ancho de papel: ${width}`, 'success');
+                } else {
+                    setPaperWidthDropdown(previous);
+                    showStatus(result.message || 'Failed to update paper width', 'error');
+                }
+            });
+
+            // cutterToggle.addEventListener('change', async () => {
+            //     const enabled = cutterToggle.checked;
+            //     const result = await window.electronAPI.setCutterEnabled(enabled);
+            //     if (result.success) {
+            //         logoConfig.cutterEnabled = enabled;
+            //     }
+            // });
+            // selectLogoBtn.addEventListener('click', async () => {
+            //     const result = await window.electronAPI.selectLogoFile();
+            //     if (result.success) {
+            //         logoConfig.logoPath = result.logoPath;
+            //         logoConfig.logoBase64 = result.logoBase64;
+            //         updateLogoPreview();
+            //         showStatus(i18next.t('settingsWindow.logoSelectedSuccess'), 'success');
+            //     } else if (result.message !== 'No file selected') {
+            //         showStatus(result.message, 'error');
+            //     }
+            // });
+            // removeLogoBtn.addEventListener('click', async () => {
+            //     const result = await window.electronAPI.removeLogo();
+            //     if (result.success) {
+            //         logoConfig.logoPath = null;
+            //         logoConfig.logoBase64 = null;
+            //         updateLogoPreview();
+            //         showStatus(i18next.t('settingsWindow.logoRemovedSuccess'), 'success');
+            //     } else {
+            //         showStatus(result.message, 'error');
+            //     }
+            // });
+            // logoToggle.addEventListener('change', async () => {
+            //     const result = await window.electronAPI.setLogoEnabled(logoToggle.checked);
+            //     if (result.success) {
+            //         logoConfig.logoEnabled = logoToggle.checked;
+            //         if (selectedTemplateName) {
+            //             updateTemplatePreview(selectedTemplateName);
+            //         }
+            //     }
+            // });
+            // logoSizeSlider.addEventListener('input', (e) => {
+            //     const size = parseInt(e.target.value);
+            //     logoSizeValue.textContent = `${size}%`;
+            //     if (logoConfig.logoBase64) {
+            //         const logoImg = logoPreview.querySelector('img');
+            //         if (logoImg) {
+            //             logoImg.style.width = `${size}%`;
+            //             logoImg.style.maxWidth = `${size}%`;
+            //         }
+            //     }
+            //     if (selectedTemplateName) {
+            //         updateTemplatePreview(selectedTemplateName);
+            //     }
+            // });
+            // logoSizeSlider.addEventListener('change', async (e) => {
+            //     const size = parseInt(e.target.value);
+            //     const result = await window.electronAPI.setLogoSize(size);
+            //     if (result.success) {
+            //         logoConfig.logoSize = size;
+            //         showStatus(`Logo size set to ${size}%`, 'success');
+            //     } else {
+            //         showStatus(result.message, 'error');
+            //     }
+            // });
+            // QR CODE SIZE SLIDER - DISABLED
+            /*
+            qrcodeSizeSlider.addEventListener('input', (e) => {
+                const size = parseInt(e.target.value);
+                qrcodeSizeValue.textContent = `${size}%`;
+                logoConfig.qrCodeSize = size;
+                if (selectedTemplateName) {
+                    updateTemplatePreview(selectedTemplateName);
+                }
+            });
+            qrcodeSizeSlider.addEventListener('change', async (e) => {
+                const size = parseInt(e.target.value);
+                const result = await window.electronAPI.setQRCodeSize(size);
+                if (result.success) {
+                    logoConfig.qrCodeSize = size;
+                    showStatus(`QR code size set to ${size}%`, 'success');
+                } else {
+                    showStatus(result.message, 'error');
+                }
+            });
+            qrcodeToggle.addEventListener('change', async () => {
+                const result = await window.electronAPI.setQRCodeEnabled(qrcodeToggle.checked);
+                if (result.success) {
+                    logoConfig.qrCodeEnabled = qrcodeToggle.checked;
+                    if (selectedTemplateName) {
+                        updateTemplatePreview(selectedTemplateName);
+                    }
+                }
+            });
+            */
+            await initializeApp();
+        });
+
+        cancelBtn.addEventListener('click', () => window.electronAPI.closeSettings());
+        
+        savePrinterBtn.addEventListener('click', async () => {
+            if (!selectedPrinterName) return;
+            savePrinterBtn.disabled = true;
+            const result = await window.electronAPI.selectPrinter(selectedPrinterName);
+            if (result.success) {
+                updateCurrentPrinter(selectedPrinterName); 
+                showStatus(result.message, 'success');
+            } else { 
+                showStatus(result.message, 'error'); 
+            }
+        });
+        // TEMPLATE SAVE BUTTON - DISABLED
+        /*
+        saveTemplateBtn.addEventListener('click', async () => {
+            if (!selectedTemplateName) return;
+            saveTemplateBtn.disabled = true;
+            const result = await window.electronAPI.setDefaultTemplate(selectedTemplateName);
+            if (result.success) { showStatus(result.message, 'success'); }
+            saveTemplateBtn.disabled = false;
+        });
+        */
+        testTemplateBtn.addEventListener('click', executeTestPrint);
+        // TEST IMAGE AND EXPORT EVENT LISTENERS - DISABLED
+        // testImageBtn.addEventListener('click', browseAndPrintImage);
+        // exportBtn.addEventListener('click', exportPreviewAsImage);
+        
+        window.electronAPI.onPrintersLoading(() => setLoading(true));
+        window.electronAPI.onPrintersLoaded((event, data) => { currentPrinters = data.printers; updateCurrentPrinter(data.currentPrinter); populatePrinters(data.printers, data.currentPrinter); setLoading(false); });
+        window.electronAPI.onPrintersError((event, error) => { setLoading(false); showStatus(error.message, 'error'); });
+        window.electronAPI.onLanguageChange((data) => {
+            i18next.addResourceBundle(data.language, 'translation', data.resources, true, true);
+            i18next.changeLanguage(data.language, () => {
+                updateContent();
+                populatePrinters(currentPrinters, selectedPrinterName);
+                // loadTemplates(); // DISABLED - using modern-receipt.html as default
+                updateLogoPreview();
+            });
+        });
+        async function initializeApp() {
+            const config = await window.electronAPI.getAppConfig();
+            if (config.platform) {
+                document.body.classList.add(`platform-${config.platform}`);
+            }
+            // Hide Windows-only buttons on other platforms
+            if (config.platform !== 'win32') {
+                const testImageBtn = document.getElementById('test-image-btn');
+                if (testImageBtn) {
+                    testImageBtn.style.display = 'none';
+                }
+            }
+
+            const i18nData = await window.electronAPI.i18nInit();
+            await i18next.init({
+                lng: i18nData.language,
+                resources: { [i18nData.language]: { translation: i18nData.resources } },
+                fallbackLng: 'en',
+                interpolation: { escapeValue: false }
+            });
+            updateContent();
+            // await loadTemplates(); // DISABLED - using modern-receipt.html as default
+            await loadLogoConfig();
+            // Load the preview with the default template
+            updateTemplatePreview(selectedTemplateName);
+        }
+
+        window.addEventListener('beforeunload', () => {
+            window.electronAPI.removeAllListeners('printers-loading');
+            window.electronAPI.removeAllListeners('printers-loaded');
+            window.electronAPI.removeAllListeners('printers-error');
+            window.electronAPI.removeAllListeners('language-changed');
+        });
+    </script>
+</body>
+</html>

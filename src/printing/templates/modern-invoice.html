@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Receipt</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 309px; /* Reduced to fit thermal printer's printable area (was 320px) */
+            font-family: monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: #000; /* Sets all font to black */
+            overflow-x: hidden; /* Ensure no horizontal overflow scrollbar */
+            /* Explicitly remove any default body padding/margin that could push the content */
+            margin: 0;
+            padding: 0;
+        }
+        .receipt {
+            /* Added minimal horizontal padding to prevent content from touching the very edge,
+               but still contained within the 320px canvas (thanks to box-sizing: border-box) */
+            padding: 10px 5px; /* 10px top, 5px left/right, 120px bottom (increased for cutting margin) */
+            width: 100%; /* Use full available width (320px) */
+        }
+        .text-center {
+            text-align: center;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .header h3, .header p {
+            margin: 0;
+        }
+        .header h3 {
+          font-size: 20px;
+          margin-bottom: 12px;
+        }
+        .line {
+            border-top: 1px dashed #000;
+            margin: 10px 0;
+        }
+        .invoice-details-table {
+            width: 100%;
+        }
+        .invoice-details-table td {
+            padding: 1px;
+            font-size: 12px;
+        }
+        .invoice-details-table .label {
+            text-align: left;
+        }
+        .invoice-details-table .value {
+            text-align: right;
+        }
+        #items-container {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0 5px;
+        }
+        #items-container td:first-child {
+          padding-right: 10px;
+          word-wrap: break-word;
+          max-width: 200px;
+        }
+        #items-container td:last-child {
+          white-space: nowrap;
+        }
+        .total-line {
+            width: 100%;
+            font-size: 20px;
+            margin-top: 5px;
+            padding-top: 5px;
+        }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+        .footer {
+            padding-bottom: 40px;
+        }
+        .footer p {
+            margin: 0;
+        }
+        .qr-code-container {
+            text-align: center;
+            margin: 10px 0;
+        }
+        .qr-code-placeholder {
+            display: inline-block;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ccc;
+            font-family: monospace;
+            font-size: 8px;
+        }
+        .logo-container {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .logo-container img {
+            max-width: 100%;
+            height: auto;
+        }
+        .align-bottom {
+          vertical-align: bottom;
+        }
+        .spacer {
+            height: 220px; /* Increased to account for logo height and ensure footer stays above cut line */
+        }
+        .tax-section, .tax-section-details {
+          margin: 8px 0;
+        }
+        .qr-section {
+          text-align: center;
+          margin: 10px 0;
+          min-height: 150px; /* Ensure section has minimum height for SVG QR code */
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+
+        <div class="header text-center">
+            <h3>{{restaurant.name}}</h3>
+        </div>
+        <table class="invoice-details-table">
+            <tbody>
+                <tr>
+                    <td class="label">{{invoiceData.razonSocialEmisor}}</td>
+                </tr>
+                <tr>
+                    <td class="label">{{invoiceData.domicilioEmisor}}</td>
+                </tr>
+                <tr>
+                    <td class="label">CUIT: {{invoiceData.docEmisor}}</td>
+                </tr>
+                <tr>
+                    <td class="label">IIBB: {{invoiceData.ingresosBrutosEmisor}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Inicio de Actividades: {{invoiceData.inicioActividadEmisor}}</td>
+                </tr>
+                <tr>
+                    <td class="label">IVA {{invoiceData.condicionIvaEmisor}}</td>
+                </tr>
+            
+                <tr>
+                    <td class="label">Fecha: {{order.date}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Hora: {{order.time}}</td>
+                </tr>
+                  <tr>
+                    <td class="label">Comprobante: {{invoiceData.puntoVenta}}-{{invoiceData.numeroComprobante}}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="tax-section-details">
+          <p class="text-center">{{invoiceData.tipoComprobanteLabel}} (COD {{invoiceData.tipoComprobante}})</p>
+          <p class="text-center">A {{invoiceData.razonSocialReceptor}} {{invoiceData.tipoDocReceptor}}: {{invoiceData.docReceptor}}</p>
+          <p class="text-center">{{invoiceData.condicionIvaReceptor}}</p>
+        </div>
+
+        <div class="line"></div>
+        
+        <table id="items-container">
+            {{order.items}}
+        </table>
+        
+        <div class="line"></div>
+
+        {{order.discountBlock}}
+
+        <table class="total-line">
+            <tr>
+              <td>TOTAL</td>
+              <td class="text-right">${{order.total}}</td>
+            </tr>
+        </table>
+
+        <p class="tax-section">Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)</p>
+
+        <table style="width: 100%;">
+            <tr>
+              <td>IVA Contenido</td>
+              <td class="text-right">${{invoiceData.impIVA}}</td>
+            </tr>
+            <tr>
+              <td>Otros tributos nacionales indirectos</td>
+              <td  class="text-right">${{invoiceData.otrosImpuestosNacionales}}</td>
+            </tr>
+        </table>
+
+        <div class="qr-section">
+          {{invoiceData.qrCode}}
+        </div>
+
+        <div class="tax-section">
+          <p><b>CAE:</b>{{invoiceData.cae}}</p>
+          <p><b>Vencimiento CAE:</b>{{invoiceData.vencimientoCAEFormatted}}</p>
+        </div>
+
+        <div class="spacer"></div>
+    </div>
+</body>
+</html>

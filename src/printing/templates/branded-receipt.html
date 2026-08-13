@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Branded Receipt</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 320px;
+            font-family: 'Arial', sans-serif;
+            font-size: 12px;
+            color: #000;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        .receipt {
+            padding: 10px 5px;
+            width: 100%;
+        }
+        .brand-header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .logo-section {
+            margin-bottom: 8px;
+        }
+        .restaurant-info {
+            margin-bottom: 8px;
+        }
+        .restaurant-name {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .restaurant-address {
+            font-size: 10px;
+            color: #666;
+        }
+        .line {
+            border-top: 1px solid #000;
+            margin: 8px 0;
+        }
+        .dashed-line {
+            border-top: 1px dashed #ccc;
+            margin: 8px 0;
+        }
+        .order-details {
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        .order-details .row {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+        }
+        .items-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            margin-bottom: 5px;
+            padding-bottom: 3px;
+            border-bottom: 1px solid #eee;
+        }
+        .item {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+        }
+        .item-name {
+            flex: 2;
+            overflow-wrap: break-word;
+        }
+        .item-quantity {
+            flex: 0.5;
+            text-align: center;
+        }
+        .item-price {
+            flex: 1;
+            text-align: right;
+        }
+        .total-section {
+            border-top: 2px solid #000;
+            margin-top: 8px;
+            padding-top: 5px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+        }
+        .notes-section {
+            margin: 8px 0;
+            padding: 5px;
+            background: #f9f9f9;
+            border-radius: 3px;
+            font-size: 10px;
+        }
+        .qr-section {
+            text-align: center;
+            margin: 10px 0;
+            padding: 8px;
+            border: 1px dashed #ccc;
+            border-radius: 5px;
+        }
+        .qr-placeholder {
+            font-family: monospace;
+            font-size: 8px;
+            margin: 5px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <!-- Logo Section -->
+        <div class="brand-header">
+            <div class="logo-section">
+                {{restaurant.logo}}
+            </div>
+            <div class="restaurant-info">
+                <div class="restaurant-name">{{restaurant.name}}</div>
+                <div class="restaurant-address">{{restaurant.address}}</div>
+            </div>
+        </div>
+
+        <div class="line"></div>
+
+        <!-- Order Details -->
+        <div class="order-details">
+            <div class="row">
+                <span>Table:</span>
+                <span>{{order.table}}</span>
+            </div>
+            <div class="row">
+                <span>Waiter:</span>
+                <span>{{order.waiter}}</span>
+            </div>
+            <div class="row">
+                <span>Date:</span>
+                <span>{{order.date}}</span>
+            </div>
+            <div class="row">
+                <span>Time:</span>
+                <span>{{order.time}}</span>
+            </div>
+        </div>
+
+        <div class="dashed-line"></div>
+
+        {{order.deliveryInfo}}
+
+        <!-- Items -->
+        <div class="items-header">
+            <span class="item-name">Item</span>
+            <span class="item-quantity">Qty</span>
+            <span class="item-price">Total</span>
+        </div>
+        
+        <div id="items-container">
+            {{order.items}}
+        </div>
+
+        <div class="dashed-line"></div>
+
+        <!-- Discount block (rendered only when present) -->
+        {{order.discountBlock}}
+
+        <!-- Total -->
+        <div class="total-section">
+            <div class="total-row">
+                <span>TOTAL</span>
+                <span>${{order.total}}</span>
+            </div>
+        </div>
+
+        <!-- QR Code Section -->
+        <div class="qr-section">
+            {{order.qrCode}}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Thank you for your visit!</p>
+            <p>Scan QR code for digital receipt</p>
+        </div>
+    </div>
+</body>
+</html>

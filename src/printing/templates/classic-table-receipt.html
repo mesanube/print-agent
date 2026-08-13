@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Classic Table Receipt</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 320px;
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 13px;
+            color: #000000 !important;
+            font-weight: bold !important;
+            line-height: 1.2;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+            background: white;
+        }
+        .receipt {
+            padding: 8px 5px;
+            width: 100%;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 6px;
+        }
+        .logo-container {
+            text-align: center;
+            margin-bottom: 6px;
+        }
+        .restaurant-name {
+            font-size: 18px;
+            font-weight: bolder;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .restaurant-address {
+            font-size: 11px;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }
+        .order-info {
+            width: 100%;
+            margin: 8px 0;
+            border: 3px solid #000;
+            border-collapse: collapse;
+        }
+        .order-info th {
+            padding: 4px 6px;
+            text-align: left;
+            border-bottom: 1px solid #000;
+            font-weight: bolder;
+        }
+        .order-info td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #000;
+        }
+        .order-info tr:last-child td {
+            border-bottom: none;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+            border: 2px solid #000;
+        }
+        .items-table th {
+            padding: 6px 4px;
+            text-align: center;
+            border: 1px solid #000;
+            font-weight: bolder;
+            font-size: 12px;
+        }
+        .items-table td {
+            padding: 5px 4px;
+            border: 1px solid #000;
+            vertical-align: top;
+        }
+        .item-name {
+            width: 45%;
+            text-align: left;
+        }
+        .item-quantity {
+            width: 15%;
+            text-align: center;
+        }
+        .item-price {
+            width: 20%;
+            text-align: right;
+        }
+        .item-total {
+            width: 20%;
+            text-align: right;
+        }
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+            border: 2px solid #000;
+        }
+        .summary-table td {
+            padding: 6px 8px;
+            border: 1px solid #000;
+        }
+        .summary-label {
+            text-align: left;
+            font-weight: bold;
+        }
+        .summary-value {
+            text-align: right;
+            font-weight: bolder;
+        }
+        .grand-total {
+            font-size: 14px;
+        }
+        .notes-section {
+            margin: 8px 0;
+            padding: 6px;
+            border: 1px solid #000;
+        }
+        .notes-section strong {
+            display: block;
+            margin-bottom: 3px;
+            font-size: 12px;
+        }
+        .qr-section {
+            text-align: center;
+            margin: 10px 0;
+            padding: 8px;
+            border: 1px solid #000;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 2px solid #000;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .thank-you {
+            margin-top: 6px;
+            font-style: italic;
+            font-weight: bolder;
+        }
+        .separator {
+            border-top: 1px dashed #000;
+            margin: 6px 0;
+        }
+        .barcode-area {
+            text-align: center;
+            margin: 8px 0;
+            padding: 4px;
+            border: 1px solid #000;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <!-- Logo Section -->
+        <div class="logo-container">
+            {{restaurant.logo}}
+        </div>
+
+        <div class="header">
+            <div class="restaurant-name">{{restaurant.name}}</div>
+            <div class="restaurant-address">{{restaurant.address}}</div>
+        </div>
+
+        <!-- Order Information Table -->
+        <table class="order-info">
+            <thead>
+                <tr>
+                    <th colspan="2">ORDER INFORMATION</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="width: 40%; font-weight: bold;">Table:</td>
+                    <td style="width: 60%;">{{order.table}}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold;">Waiter:</td>
+                    <td>{{order.waiter}}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold;">Date:</td>
+                    <td>{{order.date}}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold;">Time:</td>
+                    <td>{{order.time}}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold;">Order ID:</td>
+                    <td>#{{order.table}}-{{order.date}}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        {{order.deliveryInfo}}
+
+        <!-- Items Table -->
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th class="item-name">ITEM</th>
+                    <th class="item-quantity">QTY</th>
+                    <th class="item-price">PRICE</th>
+                    <th class="item-total">TOTAL</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{order.items}}
+            </tbody>
+        </table>
+
+        <!-- Summary Table -->
+        <table class="summary-table">
+            <tr>
+                <td class="summary-label">Subtotal:</td>
+                <td class="summary-value">${{order.total}}</td>
+            </tr>
+            <tr>
+                <td class="summary-label">Tax (8.5%):</td>
+                <td class="summary-value">${{order.tax}}</td>
+            </tr>
+            <tr>
+                <td class="summary-label">Discount:</td>
+                <td class="summary-value">$0.00</td>
+            </tr>
+            <tr class="grand-total">
+                <td class="summary-label">GRAND TOTAL:</td>
+                <td class="summary-value">${{order.grandTotal}}</td>
+            </tr>
+        </table>
+
+        <!-- QR Code Section -->
+        <div class="qr-section">
+            {{order.qrCode}}
+        </div>
+
+        <!-- Barcode Area (placeholder) -->
+        <div class="barcode-area">
+            <div>RECEIPT ID: {{order.table}}-{{order.date}}-{{order.time}}</div>
+            <div style="margin-top: 4px;">* * * * * * * * * * * * * * * *</div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="separator"></div>
+            <div class="thank-you">Thank you for your business!</div>
+            <div style="margin-top: 4px;">We appreciate your visit</div>
+            <div style="margin-top: 6px; font-size: 10px;">
+                Receipt generated electronically<br>
+                No signature required
+            </div>
+        </div>
+    </div>
+</body>
+</html>
