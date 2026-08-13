@@ -1,3 +1,4 @@
+import { powerMonitor } from 'electron';
 import electronUpdater from 'electron-updater';
 
 const { autoUpdater } = electronUpdater;
@@ -17,6 +18,10 @@ let updateReady = false;
 export function quitAndInstallIfReady() {
   if (!updateReady) return false;
   updateReady = false;
+  // Positional (isSilent, isForceRunAfter) args are correct for the
+  // electron-updater ^6.8.9 range pinned in package.json. electron-builder's
+  // v27 migration switches this to quitAndInstall({ isSilent, isForceRunAfter })
+  // -- update this call if that major version is ever adopted.
   autoUpdater.quitAndInstall(true, true);
   return true;
 }
@@ -57,4 +62,10 @@ export function initAutoUpdater() {
   const check = () => autoUpdater.checkForUpdates().catch(() => {});
   check();
   setInterval(check, CHECK_INTERVAL_MS);
+
+  // The interval above only advances while the machine is awake, so a
+  // cashier's computer that sleeps right after a check would otherwise wait
+  // out the full interval again after waking, even if that's hours later.
+  // Checking again on wake closes that gap.
+  powerMonitor.on('resume', check);
 }

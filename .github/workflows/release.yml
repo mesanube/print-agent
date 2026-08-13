@@ -41,3 +41,20 @@ jobs:
         run: yarn electron-builder --win --publish=always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify the release was actually published
+        shell: bash
+        run: |
+          set -e
+          IS_DRAFT=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft')
+          if [ "$IS_DRAFT" != "false" ]; then
+            echo "Release $GITHUB_REF_NAME was created as a draft instead of published" >&2
+            exit 1
+          fi
+          ASSETS=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
+          echo "Published assets:"
+          echo "$ASSETS"
+          echo "$ASSETS" | grep -q '\.exe$' || { echo "No .exe asset attached to $GITHUB_REF_NAME" >&2; exit 1; }
+          echo "$ASSETS" | grep -q '^latest\.yml$' || { echo "No latest.yml asset attached to $GITHUB_REF_NAME -- electron-updater will not find this release" >&2; exit 1; }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
