@@ -23,10 +23,11 @@ let printWindowGeometry = null;
 
 /**
  * Gets or creates the shared print window at the current paper geometry.
+ * @param {string|null} printerName The printer whose device width to use.
  * @returns {Promise<BrowserWindow>}
  */
-function getOrCreatePrintWindow() {
-  const geometry = getPaperGeometry();
+function getOrCreatePrintWindow(printerName = null) {
+  const geometry = getPaperGeometry(printerName);
   const needsRecreate = sharedPrintWindow && !sharedPrintWindow.isDestroyed() && printWindowGeometry && (
     printWindowGeometry.dots !== geometry.dots ||
     printWindowGeometry.zoomFactor !== geometry.zoomFactor
@@ -70,10 +71,10 @@ export function destroyPrintWindow() {
  * @param {string} htmlContent - The full HTML string to render.
  * @returns {Promise<Buffer>} A Promise that resolves with the PNG image buffer.
  */
-async function captureHtmlOnDemand(htmlContent) {
+async function captureHtmlOnDemand(htmlContent, printerName = null) {
   try {
-    const geometry = getPaperGeometry();
-    const printWindow = getOrCreatePrintWindow();
+    const geometry = getPaperGeometry(printerName);
+    const printWindow = getOrCreatePrintWindow(printerName);
 
     await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
@@ -234,7 +235,7 @@ async function dumpPngForReview(imageBuffer, printerName) {
 async function doPrintHtml(htmlContent, printerName = null) {
   if (DRY_RUN) {
     console.log(`[Print DEBUG] PRINT_AGENT_DRY_RUN=1 — capturing PNG for printer "${printerName || '(none)'}" instead of printing.`);
-    const imageBuffer = await captureHtmlOnDemand(htmlContent);
+    const imageBuffer = await captureHtmlOnDemand(htmlContent, printerName);
     await dumpPngForReview(imageBuffer, printerName);
     return;
   }
@@ -259,7 +260,7 @@ async function doPrintHtml(htmlContent, printerName = null) {
   const tempPath = path.join(os.tmpdir(), `receipt-${randomUUID()}.png`);
 
   try {
-    const imageBuffer = await captureHtmlOnDemand(htmlContent);
+    const imageBuffer = await captureHtmlOnDemand(htmlContent, selectedPrinter);
     await fs.writeFile(tempPath, imageBuffer);
 
     console.log(`[Windows Print] Rendering image ${tempPath} (${imageBuffer.length} bytes)`);

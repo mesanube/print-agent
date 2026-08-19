@@ -146,6 +146,81 @@
     wrap-ansi "^8.1.0"
     wrap-ansi-cjs "npm:wrap-ansi@^7.0.0"
 
+"@koromix/koffi-darwin-arm64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-darwin-arm64/-/koffi-darwin-arm64-3.1.5.tgz#7554fbf05956ce1bf2ffa3fc5ac03cdfef58a9f4"
+  integrity sha512-IpqITl2fJi3QN9bTtNnygWPdK7ScSjw3xtGu8e6feYGvimCysu+spgI5KyeslY2jTnqxGS9xr8pLAbLhGJ8edA==
+
+"@koromix/koffi-darwin-x64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-darwin-x64/-/koffi-darwin-x64-3.1.5.tgz#3d9a45bc4757d48afd9f6d9de60462f4fd7a78f7"
+  integrity sha512-4Tia4BS5EV/+vN9eIrdToanVe+U/2VqTZCBgOzoUbPKjgky51eqM+3J4qdRUvmYJohcJNPob5/hsxeItUZrl1g==
+
+"@koromix/koffi-freebsd-arm64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-freebsd-arm64/-/koffi-freebsd-arm64-3.1.5.tgz#7f3cd52f921e6fa6b5218ae29bb611b895f7aa3e"
+  integrity sha512-bP94uzseFO79NG3flpU3WxfyvltD+jzC/kN8FDZLi8J0VUZNW1Wmu8yq87KEzjX1qT9KyX4Y+elVbGqHXHTv2Q==
+
+"@koromix/koffi-freebsd-ia32@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-freebsd-ia32/-/koffi-freebsd-ia32-3.1.5.tgz#879afb0d8304520232451d67deb25cd980d5e224"
+  integrity sha512-raFXXAPHzvCQWhaoMUF+Cc2ZWgg2UBU0RVoowHZhaw9nQYPC1pERcPRH+JA+SNIN6g4d2GFW6uPFc+QbUhsagA==
+
+"@koromix/koffi-freebsd-x64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-freebsd-x64/-/koffi-freebsd-x64-3.1.5.tgz#099b62158678a386f396b3794d4d2f290ad83f96"
+  integrity sha512-h6RyBZmPMBIDWTABkJIhzDdYwSnYAJvTacHpEjbT55Arkmw1H15Rl7CFtXuEuBrqh+uivoCrRgA6vszl9CsJ9g==
+
+"@koromix/koffi-linux-arm64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-linux-arm64/-/koffi-linux-arm64-3.1.5.tgz#1098276bdffcb8a1f5eb2f46095fbd4201fd985c"
+  integrity sha512-u0vCmKPu4yQDhl/ri1J6U3vDnvYtYjoZaIWb+oMbRXhVZeiqdE53MGPb+q2A7Dj2n9IbYloAfEICQbL6l0pmiQ==
+
+"@koromix/koffi-linux-ia32@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-linux-ia32/-/koffi-linux-ia32-3.1.5.tgz#f8be601f480957714cbda29fd26cbaceb93be565"
+  integrity sha512-Xa5JbumWglwPVZgrJcLhqyC1wCWlfm7+C00p3FuOTNGp0qoYuf2/tOoAh0/q7+taVm30cMopu/6lRHwdmF6I/w==
+
+"@koromix/koffi-linux-loong64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-linux-loong64/-/koffi-linux-loong64-3.1.5.tgz#756df112f87b9957d7af02436c203c778ffd4860"
+  integrity sha512-F3i2CeTcqVBUQiSRUBSEzX1VgtXmLLiZb/ouZtXHkWpTLhJNd9TH7s3CizTofci0VRqlKdexGUYhK5vzPDAAHA==
+
+"@koromix/koffi-linux-riscv64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-linux-riscv64/-/koffi-linux-riscv64-3.1.5.tgz#2107bf1a74ef9927bc5a430759317c393da2b2d9"
+  integrity sha512-2TgQuzy+4PfDg+rw3kOmN6lywEWdzKT3eaLPbOp0b/9DaN7CLBJ/QIR5GhGsMNpeI30zU0YzFeYFxoVoJ/LqFw==
+
+"@koromix/koffi-linux-x64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-linux-x64/-/koffi-linux-x64-3.1.5.tgz#fe40229341a71e1814516dd13dea672df68294c3"
+  integrity sha512-2yaIg/1V0m4CiAUMzG4CIlWmq1WJ+QBMlFfaGr9su+OH5fuIqC7V3BbMiB03IwIl1VofIZO5JA4Db4lID8tpbw==
+
+"@koromix/koffi-openbsd-ia32@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-openbsd-ia32/-/koffi-openbsd-ia32-3.1.5.tgz#bbac96ebe6a2d3c25e1489e39d3904c93ae53240"
+  integrity sha512-8/OXd+u9omMooykhvdJPEP7u6FFzzrrFo9gOmSHc9/DPt3XkVYOtSsE97PDk6zYaAzwIYHSKjHvIXsfFwFc7sg==
+
+"@koromix/koffi-openbsd-x64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-openbsd-x64/-/koffi-openbsd-x64-3.1.5.tgz#1e190725c6e9c5b52c2c0c125d57da948689ced3"
+  integrity sha512-SpeqldKkuDk2aTj5PVWumy7eq6Tr2GtBPAOI1NiDHhg8xe433KraxrA9V9UjEd+1+kSGJQGR04nQByN3MPA9PQ==
+
+"@koromix/koffi-win32-arm64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-win32-arm64/-/koffi-win32-arm64-3.1.5.tgz#35692c94e64f34ef231a43b2b6879beb306d6c92"
+  integrity sha512-uej3YAEKAhlfVPoIo5sOwtxhTLRVJ01LgtWrKGpnnAQU3C+Ilmaxdh+Oc2xc1G3NK30N5eCVJpyO9r3pjKC6Vw==
+
+"@koromix/koffi-win32-ia32@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-win32-ia32/-/koffi-win32-ia32-3.1.5.tgz#2742b27dc49eeeb4c1542b1cb1ba099663c2d07a"
+  integrity sha512-d42jv2f4PwtJGNJS19Xfn/BRtGsBNNVkw0O0K5tkIGI+yNq4MnPTSUsaGbDIkCLNsCgk/LFqAaE8BExyCdrujA==
+
+"@koromix/koffi-win32-x64@3.1.5":
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/@koromix/koffi-win32-x64/-/koffi-win32-x64-3.1.5.tgz#5b9e2507fb14823dd5ba6068e3bdd41385ec6681"
+  integrity sha512-Pyo1WEHEP6Ek2NEn2pquwJzSPLOdY4vymoPSz0an1DgvFWSkOyBYYkGVoxL1ajfj5I1pPdXysYqixtVTzAtOfQ==
+
 "@malept/cross-spawn-promise@^1.1.0":
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/@malept/cross-spawn-promise/-/cross-spawn-promise-1.1.1.tgz#504af200af6b98e198bce768bc1730c6936ae01d"
@@ -1760,6 +1835,27 @@ keyv@^4.0.0, keyv@^4.5.3:
   integrity sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==
   dependencies:
     json-buffer "3.0.1"
+
+koffi@^3.1.5:
+  version "3.1.5"
+  resolved "https://registry.yarnpkg.com/koffi/-/koffi-3.1.5.tgz#3682736bfd0871e14b2246410bca21d968cedc56"
+  integrity sha512-XVwwrxg0Ca6IEUQF4YtGIU4XN0LSselFYpYvgfhh8wafCunhEEx5hPr7LZhp5QyeFA/LcRsKHTqncCdjWjWAlg==
+  optionalDependencies:
+    "@koromix/koffi-darwin-arm64" "3.1.5"
+    "@koromix/koffi-darwin-x64" "3.1.5"
+    "@koromix/koffi-freebsd-arm64" "3.1.5"
+    "@koromix/koffi-freebsd-ia32" "3.1.5"
+    "@koromix/koffi-freebsd-x64" "3.1.5"
+    "@koromix/koffi-linux-arm64" "3.1.5"
+    "@koromix/koffi-linux-ia32" "3.1.5"
+    "@koromix/koffi-linux-loong64" "3.1.5"
+    "@koromix/koffi-linux-riscv64" "3.1.5"
+    "@koromix/koffi-linux-x64" "3.1.5"
+    "@koromix/koffi-openbsd-ia32" "3.1.5"
+    "@koromix/koffi-openbsd-x64" "3.1.5"
+    "@koromix/koffi-win32-arm64" "3.1.5"
+    "@koromix/koffi-win32-ia32" "3.1.5"
+    "@koromix/koffi-win32-x64" "3.1.5"
 
 lazy-val@^1.0.4, lazy-val@^1.0.5:
   version "1.0.5"

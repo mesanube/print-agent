@@ -34,6 +34,7 @@
     "i18next": "^25.6.0",
     "i18next-electron-language-detector": "^0.0.10",
     "i18next-fs-backend": "^2.6.0",
+    "koffi": "^3.1.5",
     "node-thermal-printer": "^4.5.0",
     "qrcode": "^1.5.4"
   },
@@ -65,6 +66,10 @@
       "icon-96.png",
       "package.json",
       "!src/printing/native/cairo_printer.node"
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/**/*",
+      "node_modules/@koromix/**/*"
     ],
     "mac": {
       "category": "public.app-category.business"
