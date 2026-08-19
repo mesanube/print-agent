@@ -271,11 +271,6 @@ export async function renderCashCloseHtml(summary, restaurantData) {
     finalHtml = finalHtml.replace('{{restaurant.logo}}', '');
   }
 
-  // 58mm scaling, identical to the order pipeline.
-  if (getPaperWidth() === '58mm') {
-    finalHtml = finalHtml.replace('</head>', '<style>body { zoom: 1.23; }</style></head>');
-  }
-
   return finalHtml;
 }
 
@@ -384,9 +379,6 @@ export async function renderDayZHtml(summary, restaurantData) {
     );
   } else {
     finalHtml = finalHtml.replace('{{restaurant.logo}}', '');
-  }
-  if (getPaperWidth() === '58mm') {
-    finalHtml = finalHtml.replace('</head>', '<style>body { zoom: 1.23; }</style></head>');
   }
   return finalHtml;
 }
@@ -578,14 +570,6 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
       });
       console.log('[QR Debug] Generated QR code HTML length:', qrCodeHtml?.length || 0);
       finalHtml = finalHtml.replace('{{invoiceData.qrCode}}', qrCodeHtml);
-    }
-
-    // Scale entire receipt for 58mm paper so 80mm-tuned templates render readably.
-    if (paperWidth === '58mm') {
-      finalHtml = finalHtml.replace(
-        '</head>',
-        '<style>body { zoom: 1.23; }</style></head>'
-      );
     }
 
     return finalHtml;

@@ -8,30 +8,47 @@ import { getSelectedPrinter, getCutterEnabled } from '../core/store.js';
 import { printReceiptNative } from './native/windows-native-printer.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { getSystemPrinters } from './printer-manager.js';
+import { getPaperGeometry } from './paper-geometry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Shared BrowserWindow for rendering - reused across all print jobs to prevent leaks
 let sharedPrintWindow = null;
+// The paper geometry this shared window was created with. zoomFactor cannot be
+// changed on an already-created BrowserWindow without a reload, so when the
+// effective geometry changes (paper or device width) we recreate the window
+// with the new geometry (paper changes once every few months, KTD2).
+let printWindowGeometry = null;
 
 /**
- * Gets or creates the shared print window
+ * Gets or creates the shared print window at the current paper geometry.
  * @returns {Promise<BrowserWindow>}
  */
 function getOrCreatePrintWindow() {
+  const geometry = getPaperGeometry();
+  const needsRecreate = sharedPrintWindow && !sharedPrintWindow.isDestroyed() && printWindowGeometry && (
+    printWindowGeometry.dots !== geometry.dots ||
+    printWindowGeometry.zoomFactor !== geometry.zoomFactor
+  );
+  if (needsRecreate) {
+    sharedPrintWindow.destroy();
+    sharedPrintWindow = null;
+    console.log('[Windows Print] Recreating print window for new paper geometry');
+  }
   if (!sharedPrintWindow || sharedPrintWindow.isDestroyed()) {
     sharedPrintWindow = new BrowserWindow({
       show: false,
-      width: 640, // 2x resolution for better quality (320px * 2)
-      height: 2048, // 2x resolution for sharper output
+      width: geometry.dots,
+      height: 2048,
       webPreferences: {
         offscreen: true, // Render offscreen for better performance and no flashing
         nodeIntegration: false,
-        zoomFactor: 2.0, // Render at 2x scale for better quality
+        zoomFactor: geometry.zoomFactor,
       }
     });
-    console.log('[Windows Print] Created new shared print window with 2x resolution');
+    printWindowGeometry = geometry;
+    console.log(`[Windows Print] Created new shared print window at ${geometry.dots}px, zoom ${geometry.zoomFactor.toFixed(4)}`);
   }
   return sharedPrintWindow;
 }
@@ -55,6 +72,7 @@ export function destroyPrintWindow() {
  */
 async function captureHtmlOnDemand(htmlContent) {
   try {
+    const geometry = getPaperGeometry();
     const printWindow = getOrCreatePrintWindow();
 
     await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
@@ -131,19 +149,20 @@ async function captureHtmlOnDemand(htmlContent) {
     // Use the maximum bottom position of all elements
     // This should capture everything including the spacer, QR code, and CAE info
     // Note: scrollHeight is unreliable, so we rely on element measurements
-    // Multiply by 2 to match the zoomFactor: 2.0 setting
-    const finalHeight = Math.max(
+    // Multiply by the zoomFactor to convert CSS pixels to device points, then
+    // round up — setContentSize/capturePage need whole pixels.
+    const finalHeight = Math.ceil(Math.max(
       Math.ceil(debugInfo.maxElementBottom),
       Math.ceil(debugInfo.receiptBottom),
       Math.ceil(debugInfo.spacerBottom),
       Math.ceil(debugInfo.qrSectionBottom || 0),
       Math.ceil(debugInfo.taxSectionBottom || 0),
-    ) * 2;
+    ) * geometry.zoomFactor);
 
     // Resize the BrowserWindow to fit the content (necessary for tall receipts)
-    // Width stays at 640px (2x resolution for 320px thermal paper)
-    // Use setContentSize to actually resize the rendering area
-    printWindow.setContentSize(640, finalHeight);
+    // Width is the printable width in points, so the capture comes out at
+    // exactly one point per pixel.
+    printWindow.setContentSize(geometry.dots, finalHeight);
 
     // Wait a bit longer for window resize and re-render to complete (increased for QR code)
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -151,12 +170,11 @@ async function captureHtmlOnDemand(htmlContent) {
     // Verify the window actually resized
     const [actualWidth, actualHeight] = printWindow.getContentSize();
 
-    // Capture at 2x resolution (640px width) for better quality
-    // Capture the full height that we calculated
+    // Capture at the printable width: one captured pixel per printer point
     const image = await printWindow.webContents.capturePage({
       x: 0,
       y: 0,
-      width: 640,
+      width: geometry.dots,
       height: finalHeight
     });
 
