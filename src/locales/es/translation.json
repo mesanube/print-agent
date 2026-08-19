@@ -69,6 +69,10 @@
     "widthAdjust": "Ajuste de ancho",
     "widthAdjustHint": "Si el ticket se corta por la derecha, imprima la página de calibración y cargue el número donde se corta.",
     "printCalibrationPage": "Imprimir página de calibración",
+    "printerTransport": "Modo de impresión",
+    "printerTransportHint": "Pruebe con la página de prueba antes de dejar una impresora en ESC/POS (RAW).",
+    "transportGdi": "Driver del sistema",
+    "transportRaw": "ESC/POS (RAW)",
     "capturing": "Capturando plantilla...",
     "exporting": "Exportando imagen..."
   },

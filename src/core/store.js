@@ -134,6 +134,30 @@ export function getWidthAdjust() {
   return store.get('widthAdjust', 100); // Default to 100 (no adjustment)
 }
 
+// --- Printer Transport Management ---
+// Per-printer transport choice: 'gdi' (system driver, via cairo_printer.node)
+// or 'raw' (ESC/POS RAW written directly to the Windows print queue). Stored
+// as a map keyed by printer name so different printers on the same install
+// can be in different modes. Missing entries default to 'gdi' (KD4): an
+// install that upgrades without touching settings keeps printing through the
+// driver, and a printer never silently starts in an unvalidated mode.
+
+export function setPrinterTransport(printerName, mode) {
+  const transports = store.get('printerTransports', {});
+  transports[printerName] = mode;
+  store.set('printerTransports', transports);
+  console.log('[Settings] Printer transport saved:', printerName, '->', mode);
+}
+
+export function getPrinterTransport(printerName) {
+  const transports = store.get('printerTransports', {});
+  return transports[printerName] || 'gdi';
+}
+
+export function getPrinterTransports() {
+  return store.get('printerTransports', {});
+}
+
 // --- Register (caja) Management ---
 // The register assigned to this terminal. Combined with the selected printer,
 // this makes the print-agent the source of truth for the terminal's identity:

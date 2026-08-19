@@ -55,6 +55,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setWidthAdjust: (percent) => ipcRenderer.invoke('set-width-adjust', percent),
   printCalibrationPage: () => ipcRenderer.invoke('print-calibration-page'),
 
+  // Printer Transport API
+  getPrinterTransport: (printerName) => ipcRenderer.invoke('get-printer-transport', printerName),
+  setPrinterTransport: (printerName, mode) => ipcRenderer.invoke('set-printer-transport', printerName, mode),
+
   // Export API
   saveDataUrlAsImage: (dataUrl) => ipcRenderer.invoke('save-data-url-as-image', dataUrl),
 

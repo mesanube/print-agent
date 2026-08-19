@@ -69,6 +69,10 @@
     "widthAdjust": "Width adjust",
     "widthAdjustHint": "If the ticket is cut off on the right, print the calibration page and enter the number where it cuts.",
     "printCalibrationPage": "Print calibration page",
+    "printerTransport": "Print mode",
+    "printerTransportHint": "Test with the test page before leaving a printer on ESC/POS (RAW).",
+    "transportGdi": "System driver",
+    "transportRaw": "ESC/POS (RAW)",
     "capturing": "Capturing template...",
     "exporting": "Exporting image..."
   },

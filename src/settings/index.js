@@ -16,7 +16,8 @@ import {
     setLogoEnabled, getLogoEnabled, getLogoPath,
     setCutterEnabled, getCutterEnabled,
     setPaperWidth, getPaperWidth,
-    setWidthAdjust, getWidthAdjust
+    setWidthAdjust, getWidthAdjust,
+    setPrinterTransport, getPrinterTransport
 } from '../core/store.js';
 import { getAbsoluteLogoPath, getLogoAsBase64 } from '../shared/file-helpers.js';
 
@@ -417,6 +418,18 @@ export function setupSettingsIPC() {
     console.log('[WidthAdjust] Saved, store now reads:', getWidthAdjust());
     return { success: true };
   });
+  ipcMain.handle('get-printer-transport', (event, printerName) => {
+    return { transport: getPrinterTransport(printerName) };
+  });
+  ipcMain.handle('set-printer-transport', (event, printerName, mode) => {
+    if (mode !== 'gdi' && mode !== 'raw') {
+      console.warn('[PrinterTransport] Rejected invalid value:', mode);
+      return { success: false, message: 'Invalid transport. Must be "gdi" or "raw".' };
+    }
+    setPrinterTransport(printerName, mode);
+    console.log('[PrinterTransport] Saved, store now reads:', getPrinterTransport(printerName));
+    return { success: true };
+  });
   ipcMain.handle('print-calibration-page', async () => {
     try {
       const selectedPrinter = getSelectedPrinter();
@@ -466,4 +479,6 @@ export function cleanupSettingsIPC() {
   ipcMain.removeHandler('set-paper-width');
   ipcMain.removeHandler('set-width-adjust');
   ipcMain.removeHandler('print-calibration-page');
+  ipcMain.removeHandler('get-printer-transport');
+  ipcMain.removeHandler('set-printer-transport');
 }

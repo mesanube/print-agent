@@ -4,12 +4,15 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { BrowserWindow } from 'electron';
-import { getSelectedPrinter, getCutterEnabled } from '../core/store.js';
+import { getSelectedPrinter, getCutterEnabled, getPrinterTransport } from '../core/store.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { getSystemPrinters } from './printer-manager.js';
 import { getPaperGeometry } from './paper-geometry.js';
 import { renderCalibrationHtml } from './calibration-page.js';
 import { printBitmap as printBitmapGdi } from './transports/gdi-transport.js';
+import { printBitmap as printBitmapRaw } from './transports/raw-transport.js';
+
+const TRANSPORTS = { gdi: printBitmapGdi, raw: printBitmapRaw };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -257,12 +260,15 @@ async function doPrintHtml(htmlContent, printerName = null) {
     throw new Error(`Printer "${selectedPrinter}" not found. Available printers: ${availablePrinters}`);
   }
 
-  console.log(`[Windows Print] Printing to ${selectedPrinter} (${printerName ? 'specified' : 'default'})`);
+  const transportMode = getPrinterTransport(selectedPrinter);
+  const printBitmap = TRANSPORTS[transportMode] || printBitmapGdi;
+
+  console.log(`[Windows Print] Printing to ${selectedPrinter} (${printerName ? 'specified' : 'default'}) via ${transportMode}`);
 
   const image = await captureHtmlOnDemand(htmlContent, selectedPrinter);
   const geometry = getPaperGeometry(selectedPrinter);
 
-  await printBitmapGdi({
+  await printBitmap({
     printerName: selectedPrinter,
     image,
     geometry,

@@ -6,6 +6,7 @@ import {
   getDefaultTemplate, setDefaultTemplate,
   getPaperWidth, setPaperWidth,
   getWidthAdjust, setWidthAdjust,
+  getPrinterTransports,
   getQRCodeEnabled, setQRCodeEnabled,
   getQRCodeSize, setQRCodeSize,
   getLogoEnabled, setLogoEnabled,
@@ -87,7 +88,8 @@ export function createApi(options) {
       uptime: process.uptime(),
       selectedPrinter: getSelectedPrinter(),
       printerExplicitlySelected: getPrinterExplicitlySelected(),
-      registerId: getRegisterId()
+      registerId: getRegisterId(),
+      printerTransports: getPrinterTransports()
     });
   });
 

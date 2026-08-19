@@ -108,6 +108,18 @@
             </div>
 
             <div class="section">
+                <label><i class="material-icons">cable</i><span data-i18n="settingsWindow.printerTransport"></span></label>
+                <p style="font-size: 12px; margin: 4px 0 8px;" data-i18n="settingsWindow.printerTransportHint"></p>
+                <div id="printer-transport-wrapper" class="custom-select-wrapper disabled">
+                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.transportGdi"></span><i class="material-icons">arrow_drop_down</i></div>
+                    <div class="custom-options">
+                        <div class="custom-option selected" data-value="gdi"><span data-i18n="settingsWindow.transportGdi"></span></div>
+                        <div class="custom-option" data-value="raw"><span data-i18n="settingsWindow.transportRaw"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
                 <label><i class="material-icons">straighten</i><span>Ancho del papel</span></label>
                 <div id="paper-width-wrapper" class="custom-select-wrapper">
                     <div class="custom-select-trigger"><span>80mm</span><i class="material-icons">arrow_drop_down</i></div>
@@ -264,6 +276,7 @@
         const currentPrinterDiv = document.getElementById('current-printer');
         const savePrinterBtn = document.getElementById('save-printer-btn');
         const printerSelectWrapper = document.getElementById('printer-select-wrapper');
+        const printerTransportWrapper = document.getElementById('printer-transport-wrapper');
 
         // Template elements - DISABLED
         // const saveTemplateBtn = document.getElementById('save-template-btn');
@@ -314,6 +327,27 @@
             paperWidthWrapper.querySelectorAll('.custom-option').forEach((opt) => {
                 opt.classList.toggle('selected', opt.dataset.value === width);
             });
+        }
+
+        function setPrinterTransportDropdown(mode) {
+            if (!printerTransportWrapper) return;
+            const selected = printerTransportWrapper.querySelector(`.custom-option[data-value="${mode}"]`);
+            const trigger = printerTransportWrapper.querySelector('.custom-select-trigger span');
+            if (trigger && selected) trigger.textContent = selected.textContent;
+            printerTransportWrapper.querySelectorAll('.custom-option').forEach((opt) => {
+                opt.classList.toggle('selected', opt.dataset.value === mode);
+            });
+        }
+
+        async function refreshPrinterTransport() {
+            if (!printerTransportWrapper) return;
+            if (!selectedPrinterName) {
+                printerTransportWrapper.classList.add('disabled');
+                return;
+            }
+            printerTransportWrapper.classList.remove('disabled');
+            const result = await window.electronAPI.getPrinterTransport(selectedPrinterName);
+            setPrinterTransportDropdown(result.transport || 'gdi');
         }
 
         // --- Logo Management Functions ---
@@ -395,6 +429,7 @@
             const buttonsDisabled = !selectedPrinterName;
             testTemplateBtn.disabled = buttonsDisabled;
             // testImageBtn.disabled = buttonsDisabled; // DISABLED
+            refreshPrinterTransport();
         }
         
         // --- Template Logic ---
@@ -587,6 +622,20 @@
                 savePrinterBtn.disabled = false;
                 testTemplateBtn.disabled = false;
                 // testImageBtn.disabled = false; // DISABLED
+                refreshPrinterTransport();
+            });
+            initCustomSelect('printer-transport-wrapper', async (option) => {
+                if (!selectedPrinterName) return;
+                const mode = option.dataset.value;
+                const previous = printerTransportWrapper.querySelector('.custom-option.selected')?.dataset.value || 'gdi';
+                const result = await window.electronAPI.setPrinterTransport(selectedPrinterName, mode);
+                if (result.success) {
+                    setPrinterTransportDropdown(mode);
+                    showStatus(`Transporte: ${option.textContent}`, 'success');
+                } else {
+                    setPrinterTransportDropdown(previous);
+                    showStatus(result.message || 'Failed to update printer transport', 'error');
+                }
             });
             // TEMPLATE SELECTOR - DISABLED
             /*
