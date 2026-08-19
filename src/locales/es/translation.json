@@ -66,6 +66,9 @@
     "export": "Exportar como Imagen",
     "cutter": "Cortador de Papel",
     "enableCutter": "Activar Corte Automático",
+    "widthAdjust": "Ajuste de ancho",
+    "widthAdjustHint": "Si el ticket se corta por la derecha, imprima la página de calibración y cargue el número donde se corta.",
+    "printCalibrationPage": "Imprimir página de calibración",
     "capturing": "Capturando plantilla...",
     "exporting": "Exportando imagen..."
   },
@@ -77,6 +80,8 @@
     "noPrinterForTest": "No hay impresora seleccionada",
     "testSuccess": "Prueba de impresión enviada correctamente",
     "testError": "Error en la prueba de impresión: {{message}}",
+    "calibrationSuccess": "Página de calibración enviada correctamente",
+    "calibrationError": "Error al imprimir la página de calibración: {{message}}",
     "exportSuccess": "Imagen guardada con éxito.",
     "exportError": "Error al guardar la imagen."
   }

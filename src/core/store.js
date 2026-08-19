@@ -120,6 +120,20 @@ export function getPaperWidth() {
   return store.get('paperWidth', '80mm'); // Default to 80mm
 }
 
+// --- Width Adjust Management ---
+// Compensates for a driver that scales the bitmap to the physical page
+// instead of drawing it dot-for-dot (the residual case device-caps queries
+// cannot detect, see paper-geometry.js). 100 is neutral: no adjustment.
+
+export function setWidthAdjust(percent) {
+  store.set('widthAdjust', percent);
+  console.log('[Settings] Width adjust saved:', percent);
+}
+
+export function getWidthAdjust() {
+  return store.get('widthAdjust', 100); // Default to 100 (no adjustment)
+}
+
 // --- Register (caja) Management ---
 // The register assigned to this terminal. Combined with the selected printer,
 // this makes the print-agent the source of truth for the terminal's identity:

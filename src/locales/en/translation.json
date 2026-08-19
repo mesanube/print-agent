@@ -66,6 +66,9 @@
     "export": "Export as Image",
     "cutter": "Paper Cutter",
     "enableCutter": "Enable Automatic Cut",
+    "widthAdjust": "Width adjust",
+    "widthAdjustHint": "If the ticket is cut off on the right, print the calibration page and enter the number where it cuts.",
+    "printCalibrationPage": "Print calibration page",
     "capturing": "Capturing template...",
     "exporting": "Exporting image..."
   },
@@ -77,6 +80,8 @@
     "noPrinterForTest": "No printer is selected",
     "testSuccess": "Test print sent successfully",
     "testError": "Test print failed: {{message}}",
+    "calibrationSuccess": "Calibration page sent successfully",
+    "calibrationError": "Calibration page print failed: {{message}}",
     "exportSuccess": "Image saved successfully.",
     "exportError": "Failed to save image."
   }

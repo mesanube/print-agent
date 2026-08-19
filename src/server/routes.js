@@ -5,6 +5,7 @@ import {
   getSelectedPrinter,
   getDefaultTemplate, setDefaultTemplate,
   getPaperWidth, setPaperWidth,
+  getWidthAdjust, setWidthAdjust,
   getQRCodeEnabled, setQRCodeEnabled,
   getQRCodeSize, setQRCodeSize,
   getLogoEnabled, setLogoEnabled,
@@ -13,7 +14,7 @@ import {
   getRegisterId, setRegisterId,
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
-import { printTestPage, printReceipt, printOrder, printOrderUpdate, printInvoice, printCashClose, printDayZ } from '../printing/index.js';
+import { printTestPage, printReceipt, printOrder, printOrderUpdate, printInvoice, printCashClose, printDayZ, printCalibrationPage } from '../printing/index.js';
 
 // In-memory idempotency cache for print jobs, keyed by a generic `jobId`.
 // Covers kitchen comandas/updates (jobId = kitchenTicketId) AND the SSE
@@ -116,6 +117,7 @@ export function createApi(options) {
       selectedPrinter: getSelectedPrinter(),
       defaultTemplate: getDefaultTemplate(),
       paperWidth: getPaperWidth(),
+      widthAdjust: getWidthAdjust(),
       qrCodeEnabled: getQRCodeEnabled(),
       qrCodeSize: getQRCodeSize(),
       logoEnabled: getLogoEnabled(),
@@ -133,6 +135,7 @@ export function createApi(options) {
       const updaters = {
         defaultTemplate: setDefaultTemplate,
         paperWidth: setPaperWidth,
+        widthAdjust: setWidthAdjust,
         qrCodeEnabled: setQRCodeEnabled,
         qrCodeSize: setQRCodeSize,
         logoEnabled: setLogoEnabled,
@@ -150,6 +153,7 @@ export function createApi(options) {
           selectedPrinter: getSelectedPrinter(),
           defaultTemplate: getDefaultTemplate(),
           paperWidth: getPaperWidth(),
+          widthAdjust: getWidthAdjust(),
           qrCodeEnabled: getQRCodeEnabled(),
           qrCodeSize: getQRCodeSize(),
           logoEnabled: getLogoEnabled(),
@@ -225,6 +229,19 @@ export function createApi(options) {
       return c.json({ success: true, message: 'Test page sent to printer' });
     } catch (error) {
       return c.json({ error: 'Print test failed', details: error.message }, 500);
+    }
+  });
+
+  // Prints the width calibration ruler (plan U3). Available in production
+  // (not dev-gated like /test): an operator needs this from a real cash
+  // register to fix a driver that scales the bitmap to the physical page.
+  app.post('/print/calibration', async (c) => {
+    try {
+      const requestData = await c.req.json().catch(() => ({}));
+      await printCalibrationPage(requestData.printerName);
+      return c.json({ success: true, message: 'Calibration page sent to printer' });
+    } catch (error) {
+      return c.json({ error: 'Print calibration failed', details: error.message }, 500);
     }
   });
 

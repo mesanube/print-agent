@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Paper Width API
   setPaperWidth: (width) => ipcRenderer.invoke('set-paper-width', width),
+  setWidthAdjust: (percent) => ipcRenderer.invoke('set-width-adjust', percent),
+  printCalibrationPage: () => ipcRenderer.invoke('print-calibration-page'),
 
   // Export API
   saveDataUrlAsImage: (dataUrl) => ipcRenderer.invoke('save-data-url-as-image', dataUrl),

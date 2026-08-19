@@ -9,6 +9,7 @@ import { printReceiptNative } from './native/windows-native-printer.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { getSystemPrinters } from './printer-manager.js';
 import { getPaperGeometry } from './paper-geometry.js';
+import { renderCalibrationHtml } from './calibration-page.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -417,6 +418,11 @@ export async function printCashClose(data, printerName = null) {
 export async function printDayZ(data, printerName = null) {
   const { restaurant, summary } = data;
   const html = await renderDayZHtml(summary, restaurant);
+  await printHtml(html, printerName);
+}
+
+export async function printCalibrationPage(printerName = null) {
+  const html = renderCalibrationHtml();
   await printHtml(html, printerName);
 }
 

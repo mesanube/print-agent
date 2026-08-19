@@ -1,4 +1,4 @@
-import { getPaperWidth } from '../core/store.js';
+import { getPaperWidth, getWidthAdjust } from '../core/store.js';
 import { getPrintableWidthDots } from './device-caps.js';
 
 // Single source of truth for print geometry: the printable width in dots at the
@@ -50,6 +50,16 @@ export function getPaperGeometry(printerName = null) {
     console.log(`[Paper] Device reported ${caps.horzRes}px for "${printerName}", outside plausible band for ${paper} (${Math.round(base.dots * PLAUSIBILITY_MIN)}-${Math.round(base.dots * PLAUSIBILITY_MAX)}), using table ${base.dots}`);
   }
 
-  console.log(`[Paper] Effective width ${dots}px (${origin}) for ${paper} on "${printerName || 'default'}"`);
+  // Width adjust compensates for a driver that scales the bitmap to the
+  // physical page instead of drawing it dot-for-dot — the residual case no
+  // device query can detect (see U2/H4). Neutral at 100. Applied after the
+  // device query so it always corrects the actually-chosen width, then
+  // rounded down to a multiple of 8 again for the encoder's sake.
+  const widthAdjust = getWidthAdjust();
+  if (widthAdjust !== 100) {
+    dots = roundDownTo8(dots * (widthAdjust / 100));
+  }
+
+  console.log(`[Paper] Effective width ${dots}px (${origin}, adjust ${widthAdjust}%) for ${paper} on "${printerName || 'default'}"`);
   return { dots, cssWidth: base.cssWidth, dpi: base.dpi, paper, zoomFactor: dots / base.cssWidth, origin };
 }

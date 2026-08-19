@@ -5,7 +5,7 @@ import fsp from 'fs/promises';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { getSystemPrinters } from '../printing/printer-manager.js';
-import { printTestPage } from '../printing/index.js';
+import { printTestPage, printCalibrationPage } from '../printing/index.js';
 import { printReceiptNative } from '../printing/native/windows-native-printer.js';
 import i18next from '../core/i18n.js';
 import { generateQRCodeHTML, generateQRCodeData } from '../printing/qrcode-generator.js';
@@ -15,7 +15,8 @@ import {
     getQRCodeEnabled, setQRCodeEnabled, getQRCodeSize, setQRCodeSize,
     setLogoEnabled, getLogoEnabled, getLogoPath,
     setCutterEnabled, getCutterEnabled,
-    setPaperWidth, getPaperWidth
+    setPaperWidth, getPaperWidth,
+    setWidthAdjust, getWidthAdjust
 } from '../core/store.js';
 import { getAbsoluteLogoPath, getLogoAsBase64 } from '../shared/file-helpers.js';
 
@@ -345,7 +346,8 @@ export function setupSettingsIPC() {
       qrCodeEnabled: getQRCodeEnabled(),
       qrCodeSize: getQRCodeSize(),
       cutterEnabled: getCutterEnabled(), // Return cutter setting
-      paperWidth: getPaperWidth()
+      paperWidth: getPaperWidth(),
+      widthAdjust: getWidthAdjust()
     };
   });
   ipcMain.handle('select-logo-file', async () => {
@@ -405,6 +407,26 @@ export function setupSettingsIPC() {
     console.log('[PaperWidth] Saved, store now reads:', getPaperWidth());
     return { success: true };
   });
+  ipcMain.handle('set-width-adjust', (event, percent) => {
+    const value = Number(percent);
+    if (!Number.isFinite(value) || value < 50 || value > 150) {
+      console.warn('[WidthAdjust] Rejected out-of-range value:', percent);
+      return { success: false, message: 'Invalid width adjust. Must be a number between 50 and 150.' };
+    }
+    setWidthAdjust(value);
+    console.log('[WidthAdjust] Saved, store now reads:', getWidthAdjust());
+    return { success: true };
+  });
+  ipcMain.handle('print-calibration-page', async () => {
+    try {
+      const selectedPrinter = getSelectedPrinter();
+      await printCalibrationPage(selectedPrinter);
+      return { success: true, message: i18next.t('ipcMessages.calibrationSuccess') };
+    } catch (error) {
+      console.error('Calibration page print failed:', error);
+      return { success: false, message: i18next.t('ipcMessages.calibrationError', { message: error.message }) };
+    }
+  });
   ipcMain.handle('remove-logo', async () => {
     try {
       const currentPath = getAbsoluteLogoPath();
@@ -442,4 +464,6 @@ export function cleanupSettingsIPC() {
   // NEW: Clean up new handlers
   ipcMain.removeHandler('set-cutter-enabled');
   ipcMain.removeHandler('set-paper-width');
+  ipcMain.removeHandler('set-width-adjust');
+  ipcMain.removeHandler('print-calibration-page');
 }

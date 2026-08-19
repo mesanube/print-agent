@@ -118,6 +118,16 @@
                 </div>
             </div>
 
+            <div class="section">
+                <label><i class="material-icons">tune</i><span data-i18n="settingsWindow.widthAdjust"></span></label>
+                <p style="font-size: 12px; margin: 4px 0 8px;" data-i18n="settingsWindow.widthAdjustHint"></p>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="number" id="width-adjust-input" min="50" max="150" step="1" value="100" style="width: 70px;" />
+                    <span>%</span>
+                    <button type="button" id="print-calibration-btn" class="btn-secondary" data-i18n="settingsWindow.printCalibrationPage"><i class="material-icons">print</i><span data-i18n="settingsWindow.printCalibrationPage"></span></button>
+                </div>
+            </div>
+
             <!-- TEMPLATE SELECTOR - DISABLED (Using modern-receipt.html as default)
             <div class="section" id="template-section">
                 <label for="template-select"><i class="material-icons">description</i><span data-i18n="settingsWindow.selectTemplate"></span></label>
@@ -238,6 +248,8 @@
         // const qrcodeToggle = document.getElementById('qrcode-toggle'); // DISABLED
         const cutterToggle = document.getElementById('cutter-toggle');
         const paperWidthWrapper = document.getElementById('paper-width-wrapper');
+        const widthAdjustInput = document.getElementById('width-adjust-input');
+        const printCalibrationBtn = document.getElementById('print-calibration-btn');
         const logoSizeSlider = document.getElementById('logo-size-slider');
         const logoSizeValue = document.getElementById('logo-size-value');
         // const qrcodeSizeSlider = document.getElementById('qrcode-size-slider'); // DISABLED
@@ -324,6 +336,7 @@
             // qrcodeToggle.checked = logoConfig.qrCodeEnabled; // DISABLED
             cutterToggle.checked = logoConfig.cutterEnabled;
             setPaperWidthDropdown(logoConfig.paperWidth || '80mm');
+            widthAdjustInput.value = logoConfig.widthAdjust || 100;
             // qrcodeSizeSlider.value = logoConfig.qrCodeSize; // DISABLED
             // qrcodeSizeValue.textContent = `${logoConfig.qrCodeSize}%`; // DISABLED
             if (selectedTemplateName) {
@@ -470,6 +483,23 @@
             } catch (error) {
                 console.error('Failed to execute test print:', error);
                 showStatus(`Test print failed: ${error.message}`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        async function executeCalibrationPrint() {
+            if (!selectedPrinterName) {
+                showStatus(i18next.t('ipcMessages.noPrinterForTest'), 'error');
+                return;
+            }
+            setLoading(true, 'settingsWindow.printing');
+            try {
+                const result = await window.electronAPI.printCalibrationPage();
+                showStatus(result.message, result.success ? 'success' : 'error');
+            } catch (error) {
+                console.error('Failed to print calibration page:', error);
+                showStatus(`Calibration print failed: ${error.message}`, 'error');
             } finally {
                 setLoading(false);
             }
@@ -710,6 +740,19 @@
         });
         */
         testTemplateBtn.addEventListener('click', executeTestPrint);
+        printCalibrationBtn.addEventListener('click', executeCalibrationPrint);
+        widthAdjustInput.addEventListener('change', async () => {
+            const previous = logoConfig.widthAdjust || 100;
+            const percent = Number(widthAdjustInput.value);
+            const result = await window.electronAPI.setWidthAdjust(percent);
+            if (result.success) {
+                logoConfig.widthAdjust = percent;
+                showStatus(`Ajuste de ancho: ${percent}%`, 'success');
+            } else {
+                widthAdjustInput.value = previous;
+                showStatus(result.message || 'Failed to update width adjust', 'error');
+            }
+        });
         // TEST IMAGE AND EXPORT EVENT LISTENERS - DISABLED
         // testImageBtn.addEventListener('click', browseAndPrintImage);
         // exportBtn.addEventListener('click', exportPreviewAsImage);
