@@ -12,6 +12,11 @@
   resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.28.4.tgz#a70226016fabe25c5783b2f22d3e1c9bc5ca3326"
   integrity sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==
 
+"@canvas/image-data@^1.0.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@canvas/image-data/-/image-data-1.1.0.tgz#ead4e594515f144cc372892cacb4b24ec6d43629"
+  integrity sha512-QdObRRjRbcXGmM1tmJ+MrHcaz1MftF2+W7YI+MsphnsCrmtyfS0d5qJbk0MeSbUeyM/jCb0hmnkXPsy026L7dA==
+
 "@develar/schema-utils@~2.6.5":
   version "2.6.5"
   resolved "https://registry.yarnpkg.com/@develar/schema-utils/-/schema-utils-2.6.5.tgz#3ece22c5838402419a6e0425f85742b961d9b6c6"
@@ -263,6 +268,22 @@
   version "0.11.0"
   resolved "https://registry.yarnpkg.com/@pkgjs/parseargs/-/parseargs-0.11.0.tgz#a77ea742fab25775145434eb1d2328cf5013ac33"
   integrity sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==
+
+"@point-of-sale/codepage-encoder@^3.0.0":
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/@point-of-sale/codepage-encoder/-/codepage-encoder-3.0.2.tgz#9db0365a9da2c49757ea9d3b12f4730edd980da5"
+  integrity sha512-Sx+0sE/XgPtMUNKScHpwTIZiHNd/+Mg0udACQJVwPsxH9kUAgIkRi9kRlmWBMCruwOJadjKLyKs8MO8Bh+VS/A==
+
+"@point-of-sale/receipt-printer-encoder@^3.0.3":
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/@point-of-sale/receipt-printer-encoder/-/receipt-printer-encoder-3.0.3.tgz#48098d51859d55dac9d5e5c552076bb027cd3994"
+  integrity sha512-2+xgs6rwNfrkEw9g4LkgQS6k29qnmo3+hOV7Z2xHNBFn8h4FrwquZwL/dBOTwgmQ9sWEYBkj/bQkg9Rz6lL99w==
+  dependencies:
+    "@canvas/image-data" "^1.0.0"
+    "@point-of-sale/codepage-encoder" "^3.0.0"
+    canvas-dither "^1.0.1"
+    canvas-flatten "^1.0.1"
+    resize-image-data "^0.3.1"
 
 "@sindresorhus/is@^4.0.0":
   version "4.6.0"
@@ -698,6 +719,16 @@ camelcase@^5.0.0:
   version "5.3.1"
   resolved "https://registry.yarnpkg.com/camelcase/-/camelcase-5.3.1.tgz#e3c9b31569e106811df242f715725a1f4c494320"
   integrity sha512-L28STB170nwWS63UjtlEOE3dldQApaJXZkOI1uMFfzf3rRuPegHaHesyee+YxQ+W6SvRDQV6UrdOdRiR153wJg==
+
+canvas-dither@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/canvas-dither/-/canvas-dither-1.0.1.tgz#a340fc72241e0dcb6194ab9d916174ef99d7ab88"
+  integrity sha512-wT1RnV2y9SauibcsfMMCagQTnXmyQq2nJXuX5tTEvo0sXm1vVbJ2r8QxSC3fRQMY3ZgZVq1j54cOvmO4u+Lu/A==
+
+canvas-flatten@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/canvas-flatten/-/canvas-flatten-1.0.1.tgz#2e5b84a675b44f36647efd783bba537b3a409cf1"
+  integrity sha512-UhHeKeWGS23Bm5teZiHk6NEOme1OKCpv6arFovV89dydt0Xz+U4HkPXAKBZS/hmpR15x5U9tDj1ieMQMTwvCAA==
 
 chalk@^4.0.0, chalk@^4.1.2:
   version "4.1.2"
@@ -2298,6 +2329,13 @@ require-main-filename@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/require-main-filename/-/require-main-filename-2.0.0.tgz#d0b329ecc7cc0f61649f62215be69af54aa8989b"
   integrity sha512-NKN5kMDylKuldxYLSUfrbo5Tuzh4hd+2E8NPPX02mZtn1VuREQToYe/ZdlJy+J3uCpfaiGF05e7B8W0iXbQHmg==
+
+resize-image-data@^0.3.1:
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/resize-image-data/-/resize-image-data-0.3.1.tgz#2ad715721b4927c18d07fb657c01844ae7c75a0c"
+  integrity sha512-6hVRn2S6W1cdycreA6Vth5XRN2NnGs7/RnVpxNw/1OCK8aCoevRFH2WprmQRZDnnH3e6awLv2tTIPuv7/7xeGg==
+  dependencies:
+    "@canvas/image-data" "^1.0.0"
 
 resolve-alpn@^1.0.0:
   version "1.2.1"
