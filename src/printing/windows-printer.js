@@ -5,11 +5,11 @@ import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { BrowserWindow } from 'electron';
 import { getSelectedPrinter, getCutterEnabled } from '../core/store.js';
-import { printReceiptNative } from './native/windows-native-printer.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { getSystemPrinters } from './printer-manager.js';
 import { getPaperGeometry } from './paper-geometry.js';
 import { renderCalibrationHtml } from './calibration-page.js';
+import { printBitmap as printBitmapGdi } from './transports/gdi-transport.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,7 +70,7 @@ export function destroyPrintWindow() {
  * Renders HTML content in the shared browser window and captures it as a PNG.
  * Reuses a single BrowserWindow across all print jobs to prevent resource leaks.
  * @param {string} htmlContent - The full HTML string to render.
- * @returns {Promise<Buffer>} A Promise that resolves with the PNG image buffer.
+ * @returns {Promise<Electron.NativeImage>} A Promise that resolves with the captured NativeImage.
  */
 async function captureHtmlOnDemand(htmlContent, printerName = null) {
   try {
@@ -180,9 +180,10 @@ async function captureHtmlOnDemand(htmlContent, printerName = null) {
       height: finalHeight
     });
 
-    const imageSize = image.getSize();
-
-    return image.toPNG();
+    // Return the NativeImage itself, not a pre-encoded PNG: each transport
+    // decides what it needs (gdi-transport writes a temp PNG, raw-transport
+    // reads the raw bitmap via toBitmap()), per KTD4.
+    return image;
   } catch (error) {
     // On error, destroy the window to ensure clean state for next print
     console.error('[Windows Print] Error during capture, destroying window:', error.message);
@@ -236,8 +237,8 @@ async function dumpPngForReview(imageBuffer, printerName) {
 async function doPrintHtml(htmlContent, printerName = null) {
   if (DRY_RUN) {
     console.log(`[Print DEBUG] PRINT_AGENT_DRY_RUN=1 — capturing PNG for printer "${printerName || '(none)'}" instead of printing.`);
-    const imageBuffer = await captureHtmlOnDemand(htmlContent, printerName);
-    await dumpPngForReview(imageBuffer, printerName);
+    const image = await captureHtmlOnDemand(htmlContent, printerName);
+    await dumpPngForReview(image.toPNG(), printerName);
     return;
   }
 
@@ -258,26 +259,15 @@ async function doPrintHtml(htmlContent, printerName = null) {
 
   console.log(`[Windows Print] Printing to ${selectedPrinter} (${printerName ? 'specified' : 'default'})`);
 
-  const tempPath = path.join(os.tmpdir(), `receipt-${randomUUID()}.png`);
+  const image = await captureHtmlOnDemand(htmlContent, selectedPrinter);
+  const geometry = getPaperGeometry(selectedPrinter);
 
-  try {
-    const imageBuffer = await captureHtmlOnDemand(htmlContent, selectedPrinter);
-    await fs.writeFile(tempPath, imageBuffer);
-
-    console.log(`[Windows Print] Rendering image ${tempPath} (${imageBuffer.length} bytes)`);
-    printReceiptNative({
-      printerName: selectedPrinter,
-      imageInput: tempPath,
-      threshold: 180,
-      edgeBoost: 20,
-      dpi: 203,
-      cutter: getCutterEnabled(), // Use stored setting
-    });
-  } finally {
-    await fs.unlink(tempPath).catch(err => {
-      console.warn(`[Windows Print] Could not delete temp file: ${tempPath}`, err.message);
-    });
-  }
+  await printBitmapGdi({
+    printerName: selectedPrinter,
+    image,
+    geometry,
+    cutter: getCutterEnabled(), // Use stored setting
+  });
 }
 
 export async function printReceipt(data, printerName = null) {
