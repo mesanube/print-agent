@@ -183,6 +183,10 @@ export async function printOrderUpdate(data, printerName = null) {
     destinationText =
       '-- PARA LLEVAR --\n' +
       (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
+  } else if (order.orderType === 'counter') {
+    destinationText =
+      '-- MOSTRADOR --\n' +
+      (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
   } else {
     destinationText = `Mesa: ${order.table || '--'}\n`;
   }

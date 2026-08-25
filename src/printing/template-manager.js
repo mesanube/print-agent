@@ -479,6 +479,12 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
         '<div style="margin-bottom: 4px; font-size: 15px;">-- PARA LLEVAR --</div>' +
         `<div>Nombre: ${escapeHtml(orderData.deliveryName)}</div>` +
         '</div>';
+    } else if (orderData.orderType === 'counter' && orderData.deliveryName) {
+      deliveryInfoHtml =
+        '<div style="border: 2px solid #000; padding: 6px 8px; margin: 8px 0; font-weight: bolder;">' +
+        '<div style="margin-bottom: 4px; font-size: 15px;">-- MOSTRADOR --</div>' +
+        `<div>Nombre: ${escapeHtml(orderData.deliveryName)}</div>` +
+        '</div>';
     }
 
     // Build discount block — only on customer receipts, never on kitchen tickets.
@@ -505,7 +511,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
     let finalHtml = template
       .replace('{{restaurant.name}}', escapeHtml(restaurantData?.name || ''))
       .replace('{{restaurant.address}}', escapeHtml(restaurantData?.address || ''))
-      .replace('{{order.table}}', escapeHtml(orderData.table || (orderData.orderType == 'delivery' ? 'Delivery' : 'Para llevar')))
+      .replace('{{order.table}}', escapeHtml(orderData.table || (orderData.orderType == 'delivery' ? 'Delivery' : orderData.orderType == 'counter' ? 'Mostrador' : 'Para llevar')))
       .replace('{{order.waiter}}', escapeHtml(orderData.waiter?.name || '--'))
       .replace('{{order.date}}', escapeHtml(orderDate.toLocaleDateString()))
       .replace('{{order.time}}', escapeHtml(orderDate.toLocaleTimeString()))

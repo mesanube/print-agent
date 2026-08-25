@@ -353,6 +353,10 @@ export async function printOrderUpdate(data, printerName = null) {
     destinationHtml =
       '<div class="destination">-- PARA LLEVAR --</div>' +
       (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
+  } else if (order.orderType === 'counter') {
+    destinationHtml =
+      '<div class="destination">-- MOSTRADOR --</div>' +
+      (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
   } else {
     destinationHtml = `<div class="meta">Mesa: ${escapeHtml(order.table || '--')}</div>`;
   }
