@@ -363,6 +363,12 @@ export async function printOrderUpdate(data, printerName = null) {
     destinationHtml = `<div class="meta">Mesa: ${escapeHtml(order.table || '--')}</div>`;
   }
 
+  // Llamador (Order.callButton): independent of the destination banner above,
+  // shown only when the payload actually includes it.
+  if (order.callButton) {
+    destinationHtml += `<div class="meta">Llamador: ${escapeHtml(order.callButton)}</div>`;
+  }
+
   const html = `<!DOCTYPE html>
 <html>
 <head>

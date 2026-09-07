@@ -114,7 +114,7 @@ Mesa: ${orderData.table || '--'}
 Mesero: ${orderData.waiter?.name || '--'}
 Fecha: ${now.toLocaleDateString()}
 Hora: ${now.toLocaleTimeString()}
-
+${orderData.deliveryName ? `Nombre: ${orderData.deliveryName}\n` : ''}${orderData.callButton ? `Llamador: ${orderData.callButton}\n` : ''}
 ================
 `;
 
@@ -189,6 +189,12 @@ export async function printOrderUpdate(data, printerName = null) {
       (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
   } else {
     destinationText = `Mesa: ${order.table || '--'}\n`;
+  }
+
+  // Llamador (Order.callButton): independent of the destination text above,
+  // shown only when the payload actually includes it.
+  if (order.callButton) {
+    destinationText += `Llamador: ${order.callButton}\n`;
   }
 
   let chit = `

@@ -487,6 +487,15 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
         '</div>';
     }
 
+    // Llamador (Order.callButton): a buzzer/caller number handed to the
+    // customer, usable on dine-in and mostrador orders. Kitchen-comanda only
+    // (not the customer receipt) -- independent of the destination banner
+    // above, shown only when the payload actually includes it (e.g. dine-in
+    // never carries deliveryName, but may still have a callButton).
+    if (receiptType === 'order' && orderData.callButton) {
+      deliveryInfoHtml += `<div>Llamador: ${escapeHtml(orderData.callButton)}</div>`;
+    }
+
     // Build discount block — only on customer receipts, never on kitchen tickets.
     // Shows subtotal + discount line above the TOTAL when a discount is present.
     // Note: orderTotal is already net of discount; surcharge is stored separately,
