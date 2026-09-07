@@ -339,6 +339,9 @@ export function setupSettingsIPC() {
     }
   });
   ipcMain.handle('get-logo-config', () => {
+    // paperWidth/widthAdjust are per-printer (see get-paper-settings below) and
+    // no longer part of this snapshot -- they need to know which printer is
+    // selected in the renderer, which this global config predates.
     return {
       logoPath: getLogoPath(),
       logoBase64: getLogoAsBase64(),
@@ -347,9 +350,13 @@ export function setupSettingsIPC() {
       qrCodeEnabled: getQRCodeEnabled(),
       qrCodeSize: getQRCodeSize(),
       cutterEnabled: getCutterEnabled(), // Return cutter setting
-      paperWidth: getPaperWidth(),
-      widthAdjust: getWidthAdjust()
     };
+  });
+  // Per-printer paper width + width adjust (mirrors get/set-printer-transport
+  // below): a machine can have printers of different physical widths, so
+  // these can't be a single global value.
+  ipcMain.handle('get-paper-settings', (event, printerName) => {
+    return { paperWidth: getPaperWidth(printerName), widthAdjust: getWidthAdjust(printerName) };
   });
   ipcMain.handle('select-logo-file', async () => {
     try {
@@ -399,23 +406,23 @@ export function setupSettingsIPC() {
     setCutterEnabled(enabled);
     return { success: true };
   });
-  ipcMain.handle('set-paper-width', (event, width) => {
+  ipcMain.handle('set-paper-width', (event, printerName, width) => {
     if (width !== '80mm' && width !== '58mm') {
       console.warn('[PaperWidth] Rejected invalid value:', width);
       return { success: false, message: 'Invalid paper width. Must be "80mm" or "58mm".' };
     }
-    setPaperWidth(width);
-    console.log('[PaperWidth] Saved, store now reads:', getPaperWidth());
+    setPaperWidth(printerName, width);
+    console.log('[PaperWidth] Saved, store now reads:', getPaperWidth(printerName));
     return { success: true };
   });
-  ipcMain.handle('set-width-adjust', (event, percent) => {
+  ipcMain.handle('set-width-adjust', (event, printerName, percent) => {
     const value = Number(percent);
     if (!Number.isFinite(value) || value < 50 || value > 150) {
       console.warn('[WidthAdjust] Rejected out-of-range value:', percent);
       return { success: false, message: 'Invalid width adjust. Must be a number between 50 and 150.' };
     }
-    setWidthAdjust(value);
-    console.log('[WidthAdjust] Saved, store now reads:', getWidthAdjust());
+    setWidthAdjust(printerName, value);
+    console.log('[WidthAdjust] Saved, store now reads:', getWidthAdjust(printerName));
     return { success: true };
   });
   ipcMain.handle('get-printer-transport', (event, printerName) => {
@@ -476,6 +483,7 @@ export function cleanupSettingsIPC() {
   ipcMain.removeHandler('save-data-url-as-image');
   // NEW: Clean up new handlers
   ipcMain.removeHandler('set-cutter-enabled');
+  ipcMain.removeHandler('get-paper-settings');
   ipcMain.removeHandler('set-paper-width');
   ipcMain.removeHandler('set-width-adjust');
   ipcMain.removeHandler('print-calibration-page');

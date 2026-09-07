@@ -90,7 +90,7 @@ CORS is locked to `https://app.mesanube.ar`, `https://api.mesanube.ar`, and loca
 
 - `GET /status` — service health, app `version` (`app.getVersion()`, used by the client to warn on an outdated agent, see `client/src/utils/printAgentVersion.js`), currently selected printer, terminal `registerId`, and the per-printer transport map (`printerTransports`, see Print pipeline below).
 - `GET /printers` — list discovered printers.
-- `GET /settings` / `PUT /settings` — full settings snapshot / partial update (paper width, width adjust, QR, logo, cutter).
+- `GET /settings` / `PUT /settings` — full settings snapshot / partial update (paper width, width adjust, QR, logo, cutter). `paperWidth`/`widthAdjust` are per-printer (like `printerTransports`): GET takes an optional `?printer=` query param, PUT an optional `printer` body field, both defaulting to the currently selected printer.
 - `POST /select-printer` — persist a printer choice.
 - `POST /select-register` — persist which terminal (`registerId`) this agent instance belongs to.
 - `POST /print/receipt`, `POST /print/order`, `POST /print/invoice` — print jobs.

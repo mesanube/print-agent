@@ -279,16 +279,18 @@ async function doPrintHtml(htmlContent, printerName = null) {
 export async function printReceipt(data, printerName = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
-  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-receipt.html', "receipt");
-  await printHtml(html, printerName);
+  const effectivePrinter = printerName || getSelectedPrinter();
+  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-receipt.html', "receipt", undefined, effectivePrinter);
+  await printHtml(html, effectivePrinter);
 }
 
 export async function printOrder(data, printerName = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
+  const effectivePrinter = printerName || getSelectedPrinter();
   // Use modern-order.html template for kitchen orders
-  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-order.html', "order");
-  await printHtml(html, printerName);
+  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-order.html', "order", undefined, effectivePrinter);
+  await printHtml(html, effectivePrinter);
 }
 
 /**
@@ -403,10 +405,11 @@ export async function printOrderUpdate(data, printerName = null) {
 export async function printInvoice(data, printerName = null) {
 
   const { restaurant, order, invoiceData } = data
+  const effectivePrinter = printerName || getSelectedPrinter();
 
-  const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', "invoice", invoiceData);
+  const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', "invoice", invoiceData, effectivePrinter);
 
-  await printHtml(html, printerName);
+  await printHtml(html, effectivePrinter);
 }
 
 export async function printCashClose(data, printerName = null) {
@@ -447,6 +450,6 @@ export async function printTestPage(restaurantData = null) {
     notes: 'This is a test print from a template.'
   };
 
-  const html = await generateHtmlFromTemplate(testOrder, restaurant);
-  await printHtml(html);
+  const html = await generateHtmlFromTemplate(testOrder, restaurant, null, "receipt", undefined, selectedPrinter);
+  await printHtml(html, selectedPrinter);
 }

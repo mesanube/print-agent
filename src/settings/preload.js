@@ -50,9 +50,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Cutter API
   setCutterEnabled: (enabled) => ipcRenderer.invoke('set-cutter-enabled', enabled),
 
-  // Paper Width API
-  setPaperWidth: (width) => ipcRenderer.invoke('set-paper-width', width),
-  setWidthAdjust: (percent) => ipcRenderer.invoke('set-width-adjust', percent),
+  // Paper Width API (per-printer, mirrors Printer Transport API below)
+  getPaperSettings: (printerName) => ipcRenderer.invoke('get-paper-settings', printerName),
+  setPaperWidth: (printerName, width) => ipcRenderer.invoke('set-paper-width', printerName, width),
+  setWidthAdjust: (printerName, percent) => ipcRenderer.invoke('set-width-adjust', printerName, percent),
   printCalibrationPage: () => ipcRenderer.invoke('print-calibration-page'),
 
   // Printer Transport API

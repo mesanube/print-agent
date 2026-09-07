@@ -30,7 +30,7 @@ const roundDownTo8 = (n) => Math.floor(n / DOTS_MULTIPLE) * DOTS_MULTIPLE;
  * @returns {{dots:number, cssWidth:number, dpi:number, paper:string, zoomFactor:number, origin:string}}
  */
 export function getPaperGeometry(printerName = null) {
-  const paper = getPaperWidth();
+  const paper = getPaperWidth(printerName);
   const entry = PAPER_TABLE[paper];
   const base = entry || PAPER_TABLE['80mm'];
   if (!entry) {
@@ -55,7 +55,7 @@ export function getPaperGeometry(printerName = null) {
   // device query can detect (see U2/H4). Neutral at 100. Applied after the
   // device query so it always corrects the actually-chosen width, then
   // rounded down to a multiple of 8 again for the encoder's sake.
-  const widthAdjust = getWidthAdjust();
+  const widthAdjust = getWidthAdjust(printerName);
   if (widthAdjust !== 100) {
     dots = roundDownTo8(dots * (widthAdjust / 100));
   }

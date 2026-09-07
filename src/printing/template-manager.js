@@ -390,7 +390,7 @@ export async function renderDayZHtml(summary, restaurantData) {
  * @param {string} [templateOverride] - Optional template name to override default.
  * @returns {Promise<string>} The final HTML content as a string.
  */
-export async function generateHtmlFromTemplate(orderData, restaurantData, templateOverride = null, receiptType = "receipt", invoiceData) {
+export async function generateHtmlFromTemplate(orderData, restaurantData, templateOverride = null, receiptType = "receipt", invoiceData, printerName = null) {
 
   const templateName = templateOverride || getDefaultTemplate();
   // The path is now relative to this file inside /src/printing
@@ -560,7 +560,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
     // Add LIVE QR code if enabled - FIXED: Now uses stored QR code size
     const qrEnabled = getQRCodeEnabled();
 
-    const paperWidth = getPaperWidth();
+    const paperWidth = getPaperWidth(printerName);
     console.log('[Templating] paperWidth =', paperWidth, 'receiptType =', receiptType);
 
     if (receiptType == "invoice") {

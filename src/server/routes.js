@@ -115,12 +115,16 @@ export function createApi(options) {
   // GET /settings — full settings snapshot. Mirrors the IPC surface used by
   // the Electron settings window so an agent (or a remote troubleshooter) can
   // adjust paper width, QR, template, etc. without the desktop UI. (todo 014)
+  // paperWidth/widthAdjust are per-printer (like printerTransports); an
+  // optional `?printer=` query param targets a specific one, defaulting to
+  // the currently selected printer.
   app.get('/settings', (c) => {
+    const printerName = c.req.query('printer') || getSelectedPrinter();
     return c.json({
       selectedPrinter: getSelectedPrinter(),
       defaultTemplate: getDefaultTemplate(),
-      paperWidth: getPaperWidth(),
-      widthAdjust: getWidthAdjust(),
+      paperWidth: getPaperWidth(printerName),
+      widthAdjust: getWidthAdjust(printerName),
       qrCodeEnabled: getQRCodeEnabled(),
       qrCodeSize: getQRCodeSize(),
       logoEnabled: getLogoEnabled(),
@@ -131,14 +135,15 @@ export function createApi(options) {
 
   // PUT /settings — partial update. Only documented keys are honored; unknown
   // keys are ignored. Each setter validates internally; bad values fall back
-  // to current value rather than throwing.
+  // to current value rather than throwing. `paperWidth`/`widthAdjust` apply to
+  // an optional `printer` field in the body, defaulting to the currently
+  // selected printer (per-printer settings, like printerTransports).
   app.put('/settings', async (c) => {
     try {
       const body = await c.req.json();
+      const printerName = body.printer || getSelectedPrinter();
       const updaters = {
         defaultTemplate: setDefaultTemplate,
-        paperWidth: setPaperWidth,
-        widthAdjust: setWidthAdjust,
         qrCodeEnabled: setQRCodeEnabled,
         qrCodeSize: setQRCodeSize,
         logoEnabled: setLogoEnabled,
@@ -150,13 +155,19 @@ export function createApi(options) {
           setter(body[key]);
         }
       }
+      if (Object.prototype.hasOwnProperty.call(body, 'paperWidth')) {
+        setPaperWidth(printerName, body.paperWidth);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'widthAdjust')) {
+        setWidthAdjust(printerName, body.widthAdjust);
+      }
       return c.json({
         success: true,
         settings: {
           selectedPrinter: getSelectedPrinter(),
           defaultTemplate: getDefaultTemplate(),
-          paperWidth: getPaperWidth(),
-          widthAdjust: getWidthAdjust(),
+          paperWidth: getPaperWidth(printerName),
+          widthAdjust: getWidthAdjust(printerName),
           qrCodeEnabled: getQRCodeEnabled(),
           qrCodeSize: getQRCodeSize(),
           logoEnabled: getLogoEnabled(),

@@ -69,6 +69,27 @@
         .logo-size-labels, .qrcode-size-labels { display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-top: 4px; }
         .preview-info { margin-top: 8px; font-size: 12px; color: #666; text-align: center; }
 
+        /* Collapsible section (width-adjust / calibration), styled like the
+           disclosure box the client app uses for "Recetas" on the ingredient
+           detail page: a clickable header with a chevron that flips, content
+           hidden until expanded. */
+        .collapsible-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+        .collapsible-header label { margin-bottom: 0; }
+        .collapsible-chevron { color: #555; transition: transform 0.2s; }
+        .collapsible.open .collapsible-chevron { transform: rotate(180deg); }
+        .collapsible-content { display: none; margin-top: 12px; }
+        .collapsible.open .collapsible-content { display: block; }
+
+        /* Number input styled like .custom-select-trigger so the width-adjust
+           field matches the select boxes elsewhere on this page. */
+        .number-input-wrapper { display: inline-flex; align-items: center; gap: 4px; padding: 12px; border: 2px solid #ddd; border-radius: 6px; background: white; width: 90px; transition: border-color 0.2s; }
+        .number-input-wrapper:hover, .number-input-wrapper:focus-within { border-color: #007AFF; }
+        .number-input-wrapper input { border: none; outline: none; width: 100%; font-size: 14px; background: transparent; -moz-appearance: textfield; }
+        .number-input-wrapper input::-webkit-outer-spin-button, .number-input-wrapper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .number-input-wrapper span { font-size: 14px; color: #555; }
+        .number-input-wrapper:has(input:disabled) { background: #f5f5f5; cursor: not-allowed; }
+        .number-input-wrapper input:disabled { cursor: not-allowed; }
+
         /* OS-Specific Styles */
         body.platform-darwin #template-section,
         body.platform-darwin #logo-section,
@@ -109,7 +130,6 @@
 
             <div class="section">
                 <label><i class="material-icons">cable</i><span data-i18n="settingsWindow.printerTransport"></span></label>
-                <p style="font-size: 12px; margin: 4px 0 8px;" data-i18n="settingsWindow.printerTransportHint"></p>
                 <div id="printer-transport-wrapper" class="custom-select-wrapper disabled">
                     <div class="custom-select-trigger"><span data-i18n="settingsWindow.transportGdi"></span><i class="material-icons">arrow_drop_down</i></div>
                     <div class="custom-options">
@@ -121,7 +141,7 @@
 
             <div class="section">
                 <label><i class="material-icons">straighten</i><span>Ancho del papel</span></label>
-                <div id="paper-width-wrapper" class="custom-select-wrapper">
+                <div id="paper-width-wrapper" class="custom-select-wrapper disabled">
                     <div class="custom-select-trigger"><span>80mm</span><i class="material-icons">arrow_drop_down</i></div>
                     <div class="custom-options">
                         <div class="custom-option selected" data-value="80mm">80mm</div>
@@ -131,12 +151,21 @@
             </div>
 
             <div class="section">
-                <label><i class="material-icons">tune</i><span data-i18n="settingsWindow.widthAdjust"></span></label>
-                <p style="font-size: 12px; margin: 4px 0 8px;" data-i18n="settingsWindow.widthAdjustHint"></p>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="number" id="width-adjust-input" min="50" max="150" step="1" value="100" style="width: 70px;" />
-                    <span>%</span>
-                    <button type="button" id="print-calibration-btn" class="btn-secondary" data-i18n="settingsWindow.printCalibrationPage"><i class="material-icons">print</i><span data-i18n="settingsWindow.printCalibrationPage"></span></button>
+                <div class="collapsible" id="width-adjust-collapsible">
+                    <div class="collapsible-header" id="width-adjust-header" role="button" tabindex="0" aria-expanded="false" aria-controls="width-adjust-content">
+                        <label><i class="material-icons">tune</i><span data-i18n="settingsWindow.widthAdjust"></span></label>
+                        <i class="material-icons collapsible-chevron">expand_more</i>
+                    </div>
+                    <div class="collapsible-content" id="width-adjust-content">
+                        <p style="font-size: 12px; margin: 4px 0 8px;" data-i18n="settingsWindow.widthAdjustHint"></p>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <div class="number-input-wrapper">
+                                <input type="number" id="width-adjust-input" min="50" max="150" step="1" value="100" disabled />
+                                <span>%</span>
+                            </div>
+                            <button type="button" id="print-calibration-btn" class="btn-secondary" data-i18n="settingsWindow.printCalibrationPage"><i class="material-icons">print</i><span data-i18n="settingsWindow.printCalibrationPage"></span></button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -248,7 +277,11 @@
         let currentPrinters = [];
         let selectedPrinterName = null;
         let selectedTemplateName = 'modern-receipt.html'; // FIXED: Using modern-receipt.html as default
-        let logoConfig = { logoPath: null, logoBase64: null, logoSize: 50, logoEnabled: true, qrCodeEnabled: true, qrCodeSize: 60, cutterEnabled: true, paperWidth: '80mm' };
+        let logoConfig = { logoPath: null, logoBase64: null, logoSize: 50, logoEnabled: true, qrCodeEnabled: true, qrCodeSize: 60, cutterEnabled: true };
+        // Paper width + width adjust are per-printer (see refreshPaperSettings), so
+        // they live outside logoConfig and are re-fetched whenever the selected
+        // printer changes rather than loaded once at startup.
+        let paperSettings = { paperWidth: '80mm', widthAdjust: 100 };
         const loadingOverlay = document.getElementById('loading-overlay');
         const statusMessage = document.getElementById('status-message');
         const cancelBtn = document.getElementById('cancel-btn');
@@ -350,6 +383,23 @@
             setPrinterTransportDropdown(result.transport || 'gdi');
         }
 
+        // Paper width + width adjust are per-printer, same reasoning as printer
+        // transport above: re-fetch and redisplay whenever the selected printer
+        // changes, disable the controls until a printer is chosen.
+        async function refreshPaperSettings() {
+            if (!paperWidthWrapper || !widthAdjustInput) return;
+            if (!selectedPrinterName) {
+                paperWidthWrapper.classList.add('disabled');
+                widthAdjustInput.disabled = true;
+                return;
+            }
+            paperWidthWrapper.classList.remove('disabled');
+            widthAdjustInput.disabled = false;
+            paperSettings = await window.electronAPI.getPaperSettings(selectedPrinterName);
+            setPaperWidthDropdown(paperSettings.paperWidth || '80mm');
+            widthAdjustInput.value = paperSettings.widthAdjust || 100;
+        }
+
         // --- Logo Management Functions ---
         function updateLogoPreview() {
             if (logoConfig.logoBase64) {
@@ -369,8 +419,6 @@
             logoToggle.checked = logoConfig.logoEnabled;
             // qrcodeToggle.checked = logoConfig.qrCodeEnabled; // DISABLED
             cutterToggle.checked = logoConfig.cutterEnabled;
-            setPaperWidthDropdown(logoConfig.paperWidth || '80mm');
-            widthAdjustInput.value = logoConfig.widthAdjust || 100;
             // qrcodeSizeSlider.value = logoConfig.qrCodeSize; // DISABLED
             // qrcodeSizeValue.textContent = `${logoConfig.qrCodeSize}%`; // DISABLED
             if (selectedTemplateName) {
@@ -430,6 +478,7 @@
             testTemplateBtn.disabled = buttonsDisabled;
             // testImageBtn.disabled = buttonsDisabled; // DISABLED
             refreshPrinterTransport();
+            refreshPaperSettings();
         }
         
         // --- Template Logic ---
@@ -623,6 +672,7 @@
                 testTemplateBtn.disabled = false;
                 // testImageBtn.disabled = false; // DISABLED
                 refreshPrinterTransport();
+                refreshPaperSettings();
             });
             initCustomSelect('printer-transport-wrapper', async (option) => {
                 if (!selectedPrinterName) return;
@@ -655,13 +705,30 @@
                 });
             });
 
+            // Width-adjust collapsible (hint, input and calibration button
+            // live inside it, collapsed by default).
+            const widthAdjustCollapsible = document.getElementById('width-adjust-collapsible');
+            const widthAdjustHeader = document.getElementById('width-adjust-header');
+            const toggleWidthAdjustCollapsible = () => {
+                const isOpen = widthAdjustCollapsible.classList.toggle('open');
+                widthAdjustHeader.setAttribute('aria-expanded', String(isOpen));
+            };
+            widthAdjustHeader.addEventListener('click', toggleWidthAdjustCollapsible);
+            widthAdjustHeader.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleWidthAdjustCollapsible();
+                }
+            });
+
             // Paper width custom dropdown
             initCustomSelect('paper-width-wrapper', async (option) => {
+                if (!selectedPrinterName) return;
                 const width = option.dataset.value;
-                const previous = logoConfig.paperWidth || '80mm';
-                const result = await window.electronAPI.setPaperWidth(width);
+                const previous = paperSettings.paperWidth || '80mm';
+                const result = await window.electronAPI.setPaperWidth(selectedPrinterName, width);
                 if (result.success) {
-                    logoConfig.paperWidth = width;
+                    paperSettings.paperWidth = width;
                     paperWidthWrapper.querySelector('.custom-select-trigger span').textContent = width;
                     showStatus(`Ancho de papel: ${width}`, 'success');
                 } else {
@@ -791,11 +858,12 @@
         testTemplateBtn.addEventListener('click', executeTestPrint);
         printCalibrationBtn.addEventListener('click', executeCalibrationPrint);
         widthAdjustInput.addEventListener('change', async () => {
-            const previous = logoConfig.widthAdjust || 100;
+            if (!selectedPrinterName) return;
+            const previous = paperSettings.widthAdjust || 100;
             const percent = Number(widthAdjustInput.value);
-            const result = await window.electronAPI.setWidthAdjust(percent);
+            const result = await window.electronAPI.setWidthAdjust(selectedPrinterName, percent);
             if (result.success) {
-                logoConfig.widthAdjust = percent;
+                paperSettings.widthAdjust = percent;
                 showStatus(`Ajuste de ancho: ${percent}%`, 'success');
             } else {
                 widthAdjustInput.value = previous;
