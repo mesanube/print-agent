@@ -5,12 +5,12 @@ let server = null;
 let currentPort = null;
 
 // Server functions
-export async function startServer(findAvailablePort, tray, isDevelopmentMode = false) {
+export async function startServer(findAvailablePort, tray, isDevelopmentMode = false, appVersion = null) {
   try {
     const port = await findAvailablePort();
     currentPort = port;
 
-    const app = createApi({ isDevelopmentMode, getCurrentPort });
+    const app = createApi({ isDevelopmentMode, getCurrentPort, appVersion });
 
     server = serve({
       fetch: app.fetch,

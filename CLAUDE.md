@@ -88,7 +88,7 @@ src/
 
 CORS is locked to `https://app.mesanube.ar`, `https://api.mesanube.ar`, and localhost. Endpoints (see `src/server/routes.js` for the source of truth):
 
-- `GET /status` — service health, currently selected printer, terminal `registerId`, and the per-printer transport map (`printerTransports`, see Print pipeline below).
+- `GET /status` — service health, app `version` (`app.getVersion()`, used by the client to warn on an outdated agent, see `client/src/utils/printAgentVersion.js`), currently selected printer, terminal `registerId`, and the per-printer transport map (`printerTransports`, see Print pipeline below).
 - `GET /printers` — list discovered printers.
 - `GET /settings` / `PUT /settings` — full settings snapshot / partial update (paper width, width adjust, QR, logo, cutter).
 - `POST /select-printer` — persist a printer choice.

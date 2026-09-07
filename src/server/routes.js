@@ -51,7 +51,7 @@ const recordJob = (jobId) => {
 };
 
 export function createApi(options) {
-  const { isDevelopmentMode, getCurrentPort } = options;
+  const { isDevelopmentMode, getCurrentPort, appVersion } = options;
   const app = new Hono();
 
   // Enable CORS for all endpoints
@@ -86,6 +86,7 @@ export function createApi(options) {
       port: getCurrentPort(),
       printWindow: 'ready', // Legacy compatibility
       uptime: process.uptime(),
+      version: appVersion || null,
       selectedPrinter: getSelectedPrinter(),
       printerExplicitlySelected: getPrinterExplicitlySelected(),
       registerId: getRegisterId(),
