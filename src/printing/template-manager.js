@@ -489,11 +489,13 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
 
     // Llamador (Order.callButton): a buzzer/caller number handed to the
     // customer, usable on dine-in and mostrador orders. Kitchen-comanda only
-    // (not the customer receipt) -- independent of the destination banner
-    // above, shown only when the payload actually includes it (e.g. dine-in
-    // never carries deliveryName, but may still have a callButton).
+    // (not the customer receipt). Rendered as its own row in the details
+    // table, between Mesa and Mesero -- NOT with the delivery/mostrador
+    // banner above, which sits after a divider right before the items.
+    let callButtonRowHtml = '';
     if (receiptType === 'order' && orderData.callButton) {
-      deliveryInfoHtml += `<div>Llamador: ${escapeHtml(orderData.callButton)}</div>`;
+      callButtonRowHtml =
+        `<tr><td class="label">Llamador:</td><td class="value">${escapeHtml(orderData.callButton)}</td></tr>`;
     }
 
     // Build discount block — only on customer receipts, never on kitchen tickets.
@@ -521,6 +523,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
       .replace('{{restaurant.name}}', escapeHtml(restaurantData?.name || ''))
       .replace('{{restaurant.address}}', escapeHtml(restaurantData?.address || ''))
       .replace('{{order.table}}', escapeHtml(orderData.table || (orderData.orderType == 'delivery' ? 'Delivery' : orderData.orderType == 'counter' ? 'Mostrador' : 'Para llevar')))
+      .replace('{{order.callButtonRow}}', callButtonRowHtml)
       .replace('{{order.waiter}}', escapeHtml(orderData.waiter?.name || '--'))
       .replace('{{order.date}}', escapeHtml(orderDate.toLocaleDateString()))
       .replace('{{order.time}}', escapeHtml(orderDate.toLocaleTimeString()))

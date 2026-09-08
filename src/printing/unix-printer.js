@@ -111,10 +111,10 @@ export async function printOrder(data, printerName = null) {
 ================
 
 Mesa: ${orderData.table || '--'}
-Mesero: ${orderData.waiter?.name || '--'}
+${orderData.callButton ? `Llamador: ${orderData.callButton}\n` : ''}Mesero: ${orderData.waiter?.name || '--'}
 Fecha: ${now.toLocaleDateString()}
 Hora: ${now.toLocaleTimeString()}
-${orderData.deliveryName ? `Nombre: ${orderData.deliveryName}\n` : ''}${orderData.callButton ? `Llamador: ${orderData.callButton}\n` : ''}
+${orderData.deliveryName ? `Nombre: ${orderData.deliveryName}\n` : ''}
 ================
 `;
 
