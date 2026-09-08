@@ -271,11 +271,6 @@ export async function renderCashCloseHtml(summary, restaurantData) {
     finalHtml = finalHtml.replace('{{restaurant.logo}}', '');
   }
 
-  // 58mm scaling, identical to the order pipeline.
-  if (getPaperWidth() === '58mm') {
-    finalHtml = finalHtml.replace('</head>', '<style>body { zoom: 1.23; }</style></head>');
-  }
-
   return finalHtml;
 }
 
@@ -385,9 +380,6 @@ export async function renderDayZHtml(summary, restaurantData) {
   } else {
     finalHtml = finalHtml.replace('{{restaurant.logo}}', '');
   }
-  if (getPaperWidth() === '58mm') {
-    finalHtml = finalHtml.replace('</head>', '<style>body { zoom: 1.23; }</style></head>');
-  }
   return finalHtml;
 }
 
@@ -398,7 +390,7 @@ export async function renderDayZHtml(summary, restaurantData) {
  * @param {string} [templateOverride] - Optional template name to override default.
  * @returns {Promise<string>} The final HTML content as a string.
  */
-export async function generateHtmlFromTemplate(orderData, restaurantData, templateOverride = null, receiptType = "receipt", invoiceData) {
+export async function generateHtmlFromTemplate(orderData, restaurantData, templateOverride = null, receiptType = "receipt", invoiceData, printerName = null) {
 
   const templateName = templateOverride || getDefaultTemplate();
   // The path is now relative to this file inside /src/printing
@@ -487,6 +479,35 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
         '<div style="margin-bottom: 4px; font-size: 15px;">-- PARA LLEVAR --</div>' +
         `<div>Nombre: ${escapeHtml(orderData.deliveryName)}</div>` +
         '</div>';
+    } else if (orderData.orderType === 'counter' && orderData.deliveryName) {
+      deliveryInfoHtml =
+        '<div style="border: 2px solid #000; padding: 6px 8px; margin: 8px 0; font-weight: bolder;">' +
+        '<div style="margin-bottom: 4px; font-size: 15px;">-- MOSTRADOR --</div>' +
+        `<div>Nombre: ${escapeHtml(orderData.deliveryName)}</div>` +
+        '</div>';
+    }
+
+    // Mesa row (kitchen comanda only): its own conditional row so a table-less
+    // order (delivery/takeout/mostrador) renders nothing here instead of a
+    // fallback label -- the delivery/mostrador banner below already says what
+    // kind of order this is, so a "Mesa: Mostrador" line would be redundant.
+    // {{order.table}} (used by the customer receipt templates) keeps its own
+    // type-based fallback text below; this row is comanda-specific.
+    let tableRowHtml = '';
+    if (receiptType === 'order' && orderData.table) {
+      tableRowHtml = `<tr><td class="label">Mesa:</td><td class="value">${escapeHtml(orderData.table)}</td></tr>`;
+    }
+
+    // Llamador (Order.callButton): a buzzer/caller number handed to the
+    // customer, usable on dine-in and mostrador orders. Kitchen-comanda only
+    // (not the customer receipt). Rendered as its own row in the details
+    // table, between Mesa and Mesero -- NOT with the delivery/mostrador
+    // banner above, which sits after a divider right before the items. Omits
+    // the row entirely when absent, same as the Mesa row above.
+    let callButtonRowHtml = '';
+    if (receiptType === 'order' && orderData.callButton) {
+      callButtonRowHtml =
+        `<tr><td class="label">Llamador:</td><td class="value">${escapeHtml(orderData.callButton)}</td></tr>`;
     }
 
     // Build discount block — only on customer receipts, never on kitchen tickets.
@@ -513,7 +534,9 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
     let finalHtml = template
       .replace('{{restaurant.name}}', escapeHtml(restaurantData?.name || ''))
       .replace('{{restaurant.address}}', escapeHtml(restaurantData?.address || ''))
-      .replace('{{order.table}}', escapeHtml(orderData.table || (orderData.orderType == 'delivery' ? 'Delivery' : 'Para llevar')))
+      .replace('{{order.table}}', escapeHtml(orderData.table || (orderData.orderType == 'delivery' ? 'Delivery' : orderData.orderType == 'counter' ? 'Mostrador' : 'Para llevar')))
+      .replace('{{order.tableRow}}', tableRowHtml)
+      .replace('{{order.callButtonRow}}', callButtonRowHtml)
       .replace('{{order.waiter}}', escapeHtml(orderData.waiter?.name || '--'))
       .replace('{{order.date}}', escapeHtml(orderDate.toLocaleDateString()))
       .replace('{{order.time}}', escapeHtml(orderDate.toLocaleTimeString()))
@@ -562,7 +585,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
     // Add LIVE QR code if enabled - FIXED: Now uses stored QR code size
     const qrEnabled = getQRCodeEnabled();
 
-    const paperWidth = getPaperWidth();
+    const paperWidth = getPaperWidth(printerName);
     console.log('[Templating] paperWidth =', paperWidth, 'receiptType =', receiptType);
 
     if (receiptType == "invoice") {
@@ -578,14 +601,6 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
       });
       console.log('[QR Debug] Generated QR code HTML length:', qrCodeHtml?.length || 0);
       finalHtml = finalHtml.replace('{{invoiceData.qrCode}}', qrCodeHtml);
-    }
-
-    // Scale entire receipt for 58mm paper so 80mm-tuned templates render readably.
-    if (paperWidth === '58mm') {
-      finalHtml = finalHtml.replace(
-        '</head>',
-        '<style>body { zoom: 1.23; }</style></head>'
-      );
     }
 
     return finalHtml;

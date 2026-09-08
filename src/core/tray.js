@@ -50,7 +50,7 @@ function applyUpdateStatusToTray() {
 async function restartServer() {
   stopServer();
   const isDevelopment = !app.isPackaged;
-  await startServer(findAvailablePort, tray, isDevelopment);
+  await startServer(findAvailablePort, tray, isDevelopment, app.getVersion());
 }
 
 export function createTray() {

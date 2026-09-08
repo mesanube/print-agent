@@ -104,16 +104,24 @@ export async function printOrder(data, printerName = null) {
   const orderData = data.order || data;
   const now = new Date();
 
-  // Kitchen order format - simpler, focused on order number and items
+  // Kitchen order format - simpler, focused on order number and items.
+  // Mesa/Llamador each render their own line only when the payload actually
+  // has one (a table-less order -- delivery/takeout/mostrador -- shouldn't
+  // print "Mesa: --"); Mesero/Fecha/Hora always render regardless.
+  const headerLines = [];
+  if (orderData.table) headerLines.push(`Mesa: ${orderData.table}`);
+  if (orderData.callButton) headerLines.push(`Llamador: ${orderData.callButton}`);
+  headerLines.push(`Mesero: ${orderData.waiter?.name || '--'}`);
+  headerLines.push(`Fecha: ${now.toLocaleDateString()}`);
+  headerLines.push(`Hora: ${now.toLocaleTimeString()}`);
+  if (orderData.deliveryName) headerLines.push(`Nombre: ${orderData.deliveryName}`);
+
   let orderText = `
 ================
   #${orderData.dailyOrderNumber || orderData.orderNumber || '--'}
 ================
 
-Mesa: ${orderData.table || '--'}
-Mesero: ${orderData.waiter?.name || '--'}
-Fecha: ${now.toLocaleDateString()}
-Hora: ${now.toLocaleTimeString()}
+${headerLines.join('\n')}
 
 ================
 `;
@@ -183,8 +191,18 @@ export async function printOrderUpdate(data, printerName = null) {
     destinationText =
       '-- PARA LLEVAR --\n' +
       (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
+  } else if (order.orderType === 'counter') {
+    destinationText =
+      '-- MOSTRADOR --\n' +
+      (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
   } else {
     destinationText = `Mesa: ${order.table || '--'}\n`;
+  }
+
+  // Llamador (Order.callButton): independent of the destination text above,
+  // shown only when the payload actually includes it.
+  if (order.callButton) {
+    destinationText += `Llamador: ${order.callButton}\n`;
   }
 
   let chit = `

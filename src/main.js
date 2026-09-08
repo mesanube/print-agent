@@ -72,7 +72,7 @@ app.whenReady().then(async () => {
     
     // Start the API server
     const isDevelopment = !app.isPackaged;
-    await startServer(findAvailablePort, tray, isDevelopment);
+    await startServer(findAvailablePort, tray, isDevelopment, app.getVersion());
     
     // Auto-select the default or first available printer
     await autoSelectPrinter();

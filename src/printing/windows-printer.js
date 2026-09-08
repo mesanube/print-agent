@@ -4,34 +4,56 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { BrowserWindow } from 'electron';
-import { getSelectedPrinter, getCutterEnabled } from '../core/store.js';
-import { printReceiptNative } from './native/windows-native-printer.js';
+import { getSelectedPrinter, getCutterEnabled, getPrinterTransport } from '../core/store.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { getSystemPrinters } from './printer-manager.js';
+import { getPaperGeometry } from './paper-geometry.js';
+import { renderCalibrationHtml } from './calibration-page.js';
+import { printBitmap as printBitmapGdi } from './transports/gdi-transport.js';
+import { printBitmap as printBitmapRaw } from './transports/raw-transport.js';
+
+const TRANSPORTS = { gdi: printBitmapGdi, raw: printBitmapRaw };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Shared BrowserWindow for rendering - reused across all print jobs to prevent leaks
 let sharedPrintWindow = null;
+// The paper geometry this shared window was created with. zoomFactor cannot be
+// changed on an already-created BrowserWindow without a reload, so when the
+// effective geometry changes (paper or device width) we recreate the window
+// with the new geometry (paper changes once every few months, KTD2).
+let printWindowGeometry = null;
 
 /**
- * Gets or creates the shared print window
+ * Gets or creates the shared print window at the current paper geometry.
+ * @param {string|null} printerName The printer whose device width to use.
  * @returns {Promise<BrowserWindow>}
  */
-function getOrCreatePrintWindow() {
+function getOrCreatePrintWindow(printerName = null) {
+  const geometry = getPaperGeometry(printerName);
+  const needsRecreate = sharedPrintWindow && !sharedPrintWindow.isDestroyed() && printWindowGeometry && (
+    printWindowGeometry.dots !== geometry.dots ||
+    printWindowGeometry.zoomFactor !== geometry.zoomFactor
+  );
+  if (needsRecreate) {
+    sharedPrintWindow.destroy();
+    sharedPrintWindow = null;
+    console.log('[Windows Print] Recreating print window for new paper geometry');
+  }
   if (!sharedPrintWindow || sharedPrintWindow.isDestroyed()) {
     sharedPrintWindow = new BrowserWindow({
       show: false,
-      width: 640, // 2x resolution for better quality (320px * 2)
-      height: 2048, // 2x resolution for sharper output
+      width: geometry.dots,
+      height: 2048,
       webPreferences: {
         offscreen: true, // Render offscreen for better performance and no flashing
         nodeIntegration: false,
-        zoomFactor: 2.0, // Render at 2x scale for better quality
+        zoomFactor: geometry.zoomFactor,
       }
     });
-    console.log('[Windows Print] Created new shared print window with 2x resolution');
+    printWindowGeometry = geometry;
+    console.log(`[Windows Print] Created new shared print window at ${geometry.dots}px, zoom ${geometry.zoomFactor.toFixed(4)}`);
   }
   return sharedPrintWindow;
 }
@@ -51,11 +73,12 @@ export function destroyPrintWindow() {
  * Renders HTML content in the shared browser window and captures it as a PNG.
  * Reuses a single BrowserWindow across all print jobs to prevent resource leaks.
  * @param {string} htmlContent - The full HTML string to render.
- * @returns {Promise<Buffer>} A Promise that resolves with the PNG image buffer.
+ * @returns {Promise<Electron.NativeImage>} A Promise that resolves with the captured NativeImage.
  */
-async function captureHtmlOnDemand(htmlContent) {
+async function captureHtmlOnDemand(htmlContent, printerName = null) {
   try {
-    const printWindow = getOrCreatePrintWindow();
+    const geometry = getPaperGeometry(printerName);
+    const printWindow = getOrCreatePrintWindow(printerName);
 
     await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
@@ -131,19 +154,20 @@ async function captureHtmlOnDemand(htmlContent) {
     // Use the maximum bottom position of all elements
     // This should capture everything including the spacer, QR code, and CAE info
     // Note: scrollHeight is unreliable, so we rely on element measurements
-    // Multiply by 2 to match the zoomFactor: 2.0 setting
-    const finalHeight = Math.max(
+    // Multiply by the zoomFactor to convert CSS pixels to device points, then
+    // round up — setContentSize/capturePage need whole pixels.
+    const finalHeight = Math.ceil(Math.max(
       Math.ceil(debugInfo.maxElementBottom),
       Math.ceil(debugInfo.receiptBottom),
       Math.ceil(debugInfo.spacerBottom),
       Math.ceil(debugInfo.qrSectionBottom || 0),
       Math.ceil(debugInfo.taxSectionBottom || 0),
-    ) * 2;
+    ) * geometry.zoomFactor);
 
     // Resize the BrowserWindow to fit the content (necessary for tall receipts)
-    // Width stays at 640px (2x resolution for 320px thermal paper)
-    // Use setContentSize to actually resize the rendering area
-    printWindow.setContentSize(640, finalHeight);
+    // Width is the printable width in points, so the capture comes out at
+    // exactly one point per pixel.
+    printWindow.setContentSize(geometry.dots, finalHeight);
 
     // Wait a bit longer for window resize and re-render to complete (increased for QR code)
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -151,18 +175,18 @@ async function captureHtmlOnDemand(htmlContent) {
     // Verify the window actually resized
     const [actualWidth, actualHeight] = printWindow.getContentSize();
 
-    // Capture at 2x resolution (640px width) for better quality
-    // Capture the full height that we calculated
+    // Capture at the printable width: one captured pixel per printer point
     const image = await printWindow.webContents.capturePage({
       x: 0,
       y: 0,
-      width: 640,
+      width: geometry.dots,
       height: finalHeight
     });
 
-    const imageSize = image.getSize();
-
-    return image.toPNG();
+    // Return the NativeImage itself, not a pre-encoded PNG: each transport
+    // decides what it needs (gdi-transport writes a temp PNG, raw-transport
+    // reads the raw bitmap via toBitmap()), per KTD4.
+    return image;
   } catch (error) {
     // On error, destroy the window to ensure clean state for next print
     console.error('[Windows Print] Error during capture, destroying window:', error.message);
@@ -216,8 +240,8 @@ async function dumpPngForReview(imageBuffer, printerName) {
 async function doPrintHtml(htmlContent, printerName = null) {
   if (DRY_RUN) {
     console.log(`[Print DEBUG] PRINT_AGENT_DRY_RUN=1 — capturing PNG for printer "${printerName || '(none)'}" instead of printing.`);
-    const imageBuffer = await captureHtmlOnDemand(htmlContent);
-    await dumpPngForReview(imageBuffer, printerName);
+    const image = await captureHtmlOnDemand(htmlContent, printerName);
+    await dumpPngForReview(image.toPNG(), printerName);
     return;
   }
 
@@ -236,43 +260,37 @@ async function doPrintHtml(htmlContent, printerName = null) {
     throw new Error(`Printer "${selectedPrinter}" not found. Available printers: ${availablePrinters}`);
   }
 
-  console.log(`[Windows Print] Printing to ${selectedPrinter} (${printerName ? 'specified' : 'default'})`);
+  const transportMode = getPrinterTransport(selectedPrinter);
+  const printBitmap = TRANSPORTS[transportMode] || printBitmapGdi;
 
-  const tempPath = path.join(os.tmpdir(), `receipt-${randomUUID()}.png`);
+  console.log(`[Windows Print] Printing to ${selectedPrinter} (${printerName ? 'specified' : 'default'}) via ${transportMode}`);
 
-  try {
-    const imageBuffer = await captureHtmlOnDemand(htmlContent);
-    await fs.writeFile(tempPath, imageBuffer);
+  const image = await captureHtmlOnDemand(htmlContent, selectedPrinter);
+  const geometry = getPaperGeometry(selectedPrinter);
 
-    console.log(`[Windows Print] Rendering image ${tempPath} (${imageBuffer.length} bytes)`);
-    printReceiptNative({
-      printerName: selectedPrinter,
-      imageInput: tempPath,
-      threshold: 180,
-      edgeBoost: 20,
-      dpi: 203,
-      cutter: getCutterEnabled(), // Use stored setting
-    });
-  } finally {
-    await fs.unlink(tempPath).catch(err => {
-      console.warn(`[Windows Print] Could not delete temp file: ${tempPath}`, err.message);
-    });
-  }
+  await printBitmap({
+    printerName: selectedPrinter,
+    image,
+    geometry,
+    cutter: getCutterEnabled(), // Use stored setting
+  });
 }
 
 export async function printReceipt(data, printerName = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
-  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-receipt.html', "receipt");
-  await printHtml(html, printerName);
+  const effectivePrinter = printerName || getSelectedPrinter();
+  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-receipt.html', "receipt", undefined, effectivePrinter);
+  await printHtml(html, effectivePrinter);
 }
 
 export async function printOrder(data, printerName = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
+  const effectivePrinter = printerName || getSelectedPrinter();
   // Use modern-order.html template for kitchen orders
-  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-order.html', "order");
-  await printHtml(html, printerName);
+  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-order.html', "order", undefined, effectivePrinter);
+  await printHtml(html, effectivePrinter);
 }
 
 /**
@@ -337,8 +355,18 @@ export async function printOrderUpdate(data, printerName = null) {
     destinationHtml =
       '<div class="destination">-- PARA LLEVAR --</div>' +
       (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
+  } else if (order.orderType === 'counter') {
+    destinationHtml =
+      '<div class="destination">-- MOSTRADOR --</div>' +
+      (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
   } else {
     destinationHtml = `<div class="meta">Mesa: ${escapeHtml(order.table || '--')}</div>`;
+  }
+
+  // Llamador (Order.callButton): independent of the destination banner above,
+  // shown only when the payload actually includes it.
+  if (order.callButton) {
+    destinationHtml += `<div class="meta">Llamador: ${escapeHtml(order.callButton)}</div>`;
   }
 
   const html = `<!DOCTYPE html>
@@ -383,10 +411,11 @@ export async function printOrderUpdate(data, printerName = null) {
 export async function printInvoice(data, printerName = null) {
 
   const { restaurant, order, invoiceData } = data
+  const effectivePrinter = printerName || getSelectedPrinter();
 
-  const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', "invoice", invoiceData);
+  const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', "invoice", invoiceData, effectivePrinter);
 
-  await printHtml(html, printerName);
+  await printHtml(html, effectivePrinter);
 }
 
 export async function printCashClose(data, printerName = null) {
@@ -398,6 +427,11 @@ export async function printCashClose(data, printerName = null) {
 export async function printDayZ(data, printerName = null) {
   const { restaurant, summary } = data;
   const html = await renderDayZHtml(summary, restaurant);
+  await printHtml(html, printerName);
+}
+
+export async function printCalibrationPage(printerName = null) {
+  const html = renderCalibrationHtml();
   await printHtml(html, printerName);
 }
 
@@ -422,6 +456,6 @@ export async function printTestPage(restaurantData = null) {
     notes: 'This is a test print from a template.'
   };
 
-  const html = await generateHtmlFromTemplate(testOrder, restaurant);
-  await printHtml(html);
+  const html = await generateHtmlFromTemplate(testOrder, restaurant, null, "receipt", undefined, selectedPrinter);
+  await printHtml(html, selectedPrinter);
 }

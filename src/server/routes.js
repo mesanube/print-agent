@@ -5,6 +5,8 @@ import {
   getSelectedPrinter,
   getDefaultTemplate, setDefaultTemplate,
   getPaperWidth, setPaperWidth,
+  getWidthAdjust, setWidthAdjust,
+  getPrinterTransports,
   getQRCodeEnabled, setQRCodeEnabled,
   getQRCodeSize, setQRCodeSize,
   getLogoEnabled, setLogoEnabled,
@@ -13,7 +15,7 @@ import {
   getRegisterId, setRegisterId,
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
-import { printTestPage, printReceipt, printOrder, printOrderUpdate, printInvoice, printCashClose, printDayZ } from '../printing/index.js';
+import { printTestPage, printReceipt, printOrder, printOrderUpdate, printInvoice, printCashClose, printDayZ, printCalibrationPage } from '../printing/index.js';
 
 // In-memory idempotency cache for print jobs, keyed by a generic `jobId`.
 // Covers kitchen comandas/updates (jobId = kitchenTicketId) AND the SSE
@@ -49,7 +51,7 @@ const recordJob = (jobId) => {
 };
 
 export function createApi(options) {
-  const { isDevelopmentMode, getCurrentPort } = options;
+  const { isDevelopmentMode, getCurrentPort, appVersion } = options;
   const app = new Hono();
 
   // Enable CORS for all endpoints
@@ -84,9 +86,11 @@ export function createApi(options) {
       port: getCurrentPort(),
       printWindow: 'ready', // Legacy compatibility
       uptime: process.uptime(),
+      version: appVersion || null,
       selectedPrinter: getSelectedPrinter(),
       printerExplicitlySelected: getPrinterExplicitlySelected(),
-      registerId: getRegisterId()
+      registerId: getRegisterId(),
+      printerTransports: getPrinterTransports()
     });
   });
 
@@ -111,11 +115,16 @@ export function createApi(options) {
   // GET /settings — full settings snapshot. Mirrors the IPC surface used by
   // the Electron settings window so an agent (or a remote troubleshooter) can
   // adjust paper width, QR, template, etc. without the desktop UI. (todo 014)
+  // paperWidth/widthAdjust are per-printer (like printerTransports); an
+  // optional `?printer=` query param targets a specific one, defaulting to
+  // the currently selected printer.
   app.get('/settings', (c) => {
+    const printerName = c.req.query('printer') || getSelectedPrinter();
     return c.json({
       selectedPrinter: getSelectedPrinter(),
       defaultTemplate: getDefaultTemplate(),
-      paperWidth: getPaperWidth(),
+      paperWidth: getPaperWidth(printerName),
+      widthAdjust: getWidthAdjust(printerName),
       qrCodeEnabled: getQRCodeEnabled(),
       qrCodeSize: getQRCodeSize(),
       logoEnabled: getLogoEnabled(),
@@ -126,13 +135,15 @@ export function createApi(options) {
 
   // PUT /settings — partial update. Only documented keys are honored; unknown
   // keys are ignored. Each setter validates internally; bad values fall back
-  // to current value rather than throwing.
+  // to current value rather than throwing. `paperWidth`/`widthAdjust` apply to
+  // an optional `printer` field in the body, defaulting to the currently
+  // selected printer (per-printer settings, like printerTransports).
   app.put('/settings', async (c) => {
     try {
       const body = await c.req.json();
+      const printerName = body.printer || getSelectedPrinter();
       const updaters = {
         defaultTemplate: setDefaultTemplate,
-        paperWidth: setPaperWidth,
         qrCodeEnabled: setQRCodeEnabled,
         qrCodeSize: setQRCodeSize,
         logoEnabled: setLogoEnabled,
@@ -144,12 +155,19 @@ export function createApi(options) {
           setter(body[key]);
         }
       }
+      if (Object.prototype.hasOwnProperty.call(body, 'paperWidth')) {
+        setPaperWidth(printerName, body.paperWidth);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'widthAdjust')) {
+        setWidthAdjust(printerName, body.widthAdjust);
+      }
       return c.json({
         success: true,
         settings: {
           selectedPrinter: getSelectedPrinter(),
           defaultTemplate: getDefaultTemplate(),
-          paperWidth: getPaperWidth(),
+          paperWidth: getPaperWidth(printerName),
+          widthAdjust: getWidthAdjust(printerName),
           qrCodeEnabled: getQRCodeEnabled(),
           qrCodeSize: getQRCodeSize(),
           logoEnabled: getLogoEnabled(),
@@ -225,6 +243,19 @@ export function createApi(options) {
       return c.json({ success: true, message: 'Test page sent to printer' });
     } catch (error) {
       return c.json({ error: 'Print test failed', details: error.message }, 500);
+    }
+  });
+
+  // Prints the width calibration ruler (plan U3). Available in production
+  // (not dev-gated like /test): an operator needs this from a real cash
+  // register to fix a driver that scales the bitmap to the physical page.
+  app.post('/print/calibration', async (c) => {
+    try {
+      const requestData = await c.req.json().catch(() => ({}));
+      await printCalibrationPage(requestData.printerName);
+      return c.json({ success: true, message: 'Calibration page sent to printer' });
+    } catch (error) {
+      return c.json({ error: 'Print calibration failed', details: error.message }, 500);
     }
   });
 

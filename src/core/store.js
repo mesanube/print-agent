@@ -110,14 +110,68 @@ export function getCutterEnabled() {
 }
 
 // --- Paper Width Management ---
+// Per-printer, same shape as printerTransports below: a machine can have a
+// 58mm printer at the counter and an 80mm one in the kitchen, so the paper
+// size has to travel with the printer, not be a single global value. Stored
+// as a map keyed by printer name; an entry missing for a given printer falls
+// back to the pre-migration global `paperWidth` key (a single install-wide
+// value) so an existing install doesn't silently reset to 80mm on upgrade.
 
-export function setPaperWidth(width) {
-  store.set('paperWidth', width);
-  console.log('[Settings] Paper width saved:', width);
+export function setPaperWidth(printerName, width) {
+  const widths = store.get('paperWidths', {});
+  widths[printerName] = width;
+  store.set('paperWidths', widths);
+  console.log('[Settings] Paper width saved:', printerName, '->', width);
 }
 
-export function getPaperWidth() {
-  return store.get('paperWidth', '80mm'); // Default to 80mm
+export function getPaperWidth(printerName) {
+  const widths = store.get('paperWidths', {});
+  if (printerName && widths[printerName] != null) return widths[printerName];
+  return store.get('paperWidth', '80mm'); // pre-migration global default
+}
+
+// --- Width Adjust Management ---
+// Compensates for a driver that scales the bitmap to the physical page
+// instead of drawing it dot-for-dot (the residual case device-caps queries
+// cannot detect, see paper-geometry.js). 100 is neutral: no adjustment.
+// Per-printer for the same reason as paper width above: two printers on the
+// same machine can need different corrections. Same migration fallback.
+
+export function setWidthAdjust(printerName, percent) {
+  const adjusts = store.get('widthAdjusts', {});
+  adjusts[printerName] = percent;
+  store.set('widthAdjusts', adjusts);
+  console.log('[Settings] Width adjust saved:', printerName, '->', percent);
+}
+
+export function getWidthAdjust(printerName) {
+  const adjusts = store.get('widthAdjusts', {});
+  if (printerName && adjusts[printerName] != null) return adjusts[printerName];
+  return store.get('widthAdjust', 100); // pre-migration global default
+}
+
+// --- Printer Transport Management ---
+// Per-printer transport choice: 'gdi' (system driver, via cairo_printer.node)
+// or 'raw' (ESC/POS RAW written directly to the Windows print queue). Stored
+// as a map keyed by printer name so different printers on the same install
+// can be in different modes. Missing entries default to 'gdi' (KD4): an
+// install that upgrades without touching settings keeps printing through the
+// driver, and a printer never silently starts in an unvalidated mode.
+
+export function setPrinterTransport(printerName, mode) {
+  const transports = store.get('printerTransports', {});
+  transports[printerName] = mode;
+  store.set('printerTransports', transports);
+  console.log('[Settings] Printer transport saved:', printerName, '->', mode);
+}
+
+export function getPrinterTransport(printerName) {
+  const transports = store.get('printerTransports', {});
+  return transports[printerName] || 'gdi';
+}
+
+export function getPrinterTransports() {
+  return store.get('printerTransports', {});
 }
 
 // --- Register (caja) Management ---

@@ -1,4 +1,4 @@
-import { printReceipt as printReceiptWindows, printOrder as printOrderWindows, printOrderUpdate as printOrderUpdateWindows, printTestPage as printTestPageWindows, printInvoice as printInvoiceWindows, printCashClose as printCashCloseWindows, printDayZ as printDayZWindows } from './windows-printer.js';
+import { printReceipt as printReceiptWindows, printOrder as printOrderWindows, printOrderUpdate as printOrderUpdateWindows, printTestPage as printTestPageWindows, printInvoice as printInvoiceWindows, printCashClose as printCashCloseWindows, printDayZ as printDayZWindows, printCalibrationPage as printCalibrationPageWindows } from './windows-printer.js';
 import { printReceipt as printReceiptUnix, printOrder as printOrderUnix, printOrderUpdate as printOrderUpdateUnix, printTestPage as printTestPageUnix } from './unix-printer.js';
 
 const isWindows = process.platform === 'win32';
@@ -122,6 +122,21 @@ export async function printDayZ(data, printerName = null) {
     console.error('[Print] ✗ Day-Z printing failed:', error);
     throw new Error(`Print day-Z failed: ${error.message}`);
   }
+}
+
+/**
+ * Prints the width calibration page (plan U3). Windows-only: the RAW/GDI
+ * geometry work this compensates for is Windows-only (KD2); guarded so dev
+ * (macOS) does not invoke the Windows-only rendering path.
+ * @param {string|null} printerName - Optional printer name to override default.
+ */
+export async function printCalibrationPage(printerName = null) {
+  if (!isWindows) {
+    console.log('[Print] calibration page printing is only supported on Windows; skipping on this platform');
+    return;
+  }
+  await printCalibrationPageWindows(printerName);
+  console.log(`[Print] ✓ Calibration page printed successfully to ${printerName || 'default printer'}`);
 }
 
 /**
