@@ -487,11 +487,23 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
         '</div>';
     }
 
+    // Mesa row (kitchen comanda only): its own conditional row so a table-less
+    // order (delivery/takeout/mostrador) renders nothing here instead of a
+    // fallback label -- the delivery/mostrador banner below already says what
+    // kind of order this is, so a "Mesa: Mostrador" line would be redundant.
+    // {{order.table}} (used by the customer receipt templates) keeps its own
+    // type-based fallback text below; this row is comanda-specific.
+    let tableRowHtml = '';
+    if (receiptType === 'order' && orderData.table) {
+      tableRowHtml = `<tr><td class="label">Mesa:</td><td class="value">${escapeHtml(orderData.table)}</td></tr>`;
+    }
+
     // Llamador (Order.callButton): a buzzer/caller number handed to the
     // customer, usable on dine-in and mostrador orders. Kitchen-comanda only
     // (not the customer receipt). Rendered as its own row in the details
     // table, between Mesa and Mesero -- NOT with the delivery/mostrador
-    // banner above, which sits after a divider right before the items.
+    // banner above, which sits after a divider right before the items. Omits
+    // the row entirely when absent, same as the Mesa row above.
     let callButtonRowHtml = '';
     if (receiptType === 'order' && orderData.callButton) {
       callButtonRowHtml =
@@ -523,6 +535,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
       .replace('{{restaurant.name}}', escapeHtml(restaurantData?.name || ''))
       .replace('{{restaurant.address}}', escapeHtml(restaurantData?.address || ''))
       .replace('{{order.table}}', escapeHtml(orderData.table || (orderData.orderType == 'delivery' ? 'Delivery' : orderData.orderType == 'counter' ? 'Mostrador' : 'Para llevar')))
+      .replace('{{order.tableRow}}', tableRowHtml)
       .replace('{{order.callButtonRow}}', callButtonRowHtml)
       .replace('{{order.waiter}}', escapeHtml(orderData.waiter?.name || '--'))
       .replace('{{order.date}}', escapeHtml(orderDate.toLocaleDateString()))
