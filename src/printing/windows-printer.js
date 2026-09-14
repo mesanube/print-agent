@@ -334,11 +334,17 @@ export async function printOrderUpdate(data, printerName = null) {
       // A note line has no quantity — render only the prefix + text.
       const qtyHtml =
         line.kind === 'note' ? '' : `<span class="qty">${escapeHtml(line.quantity || 1)}x</span>`;
+      // Per-unit note of the item, under its line and with the same layout as
+      // the original chit. An add/cancel line is already one physical unit, so
+      // its note belongs to that unit; a modify line is not split, so it
+      // carries every note of the item joined by the client.
+      const noteHtml = line.note ? `<div class="note">${escapeHtml(line.note)}</div>` : '';
       return `<div class="${lineClass(line.kind)}">
         <span class="prefix">${linePrefix(line.kind)}</span>
         ${qtyHtml}
         <span class="name">${escapeHtml(line.name || 'Item')}</span>
         ${mods}
+        ${noteHtml}
       </div>`;
     })
     .join('\n');
@@ -386,6 +392,9 @@ export async function printOrderUpdate(data, printerName = null) {
     .line.cancel { background: #000; color: #fff; padding: 4px; }
     .line.modify { border-left: 6px solid #000; padding-left: 6px; }
     .mods { width: 100%; font-weight: normal; font-size: 14px; padding-left: 12px; }
+    /* Per-unit note. pre-wrap keeps the typed line breaks, which collapse
+       otherwise, and the indent matches the original chit's layout. */
+    .note { width: 100%; white-space: pre-wrap; font-style: italic; font-weight: normal; padding-left: 2em; }
     .footer { margin-top: 16px; }
   </style>
 </head>
