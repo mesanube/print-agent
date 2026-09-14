@@ -423,6 +423,14 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
 
         if (receiptType == "order") {
           itemsHtml += `<tr><td><span>${name.padEnd(20)} </span><span class="text-right">x${quantity}</span></td></tr>`;
+          // Per-unit note, on its own row under the plate it belongs to. The
+          // client already split the line into one entry per physical unit, so
+          // a row carrying a note is always a single plate. A terminal with an
+          // older agent bakes the note into `name` instead and never sends this
+          // field, so the check also covers every payload built before 1.5.0.
+          if (item.note) {
+            itemsHtml += `<tr><td class="item-note">${escapeHtml(item.note)}</td></tr>`;
+          }
         } else {
           itemsHtml += `<tr><td>${name.padEnd(20)} x${quantity}</td><td class="item-name align-bottom text-right">$${formatPrice(total)}</td></tr>`;
         }
