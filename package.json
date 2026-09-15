@@ -5,7 +5,7 @@
   "main": "src/main.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --exec electron . --watch src --ext js",
+    "dev": "nodemon --exec electron . --watch src --ext js,json,html",
     "lint": "eslint src --ext .js",
     "lint:fix": "eslint src --ext .js --fix",
     "build": "electron-builder",

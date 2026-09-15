@@ -1,8 +1,17 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { getServer, getCurrentPort } from '../server/index.js';
 import i18next from './i18n.js';
 import { cleanupSettingsIPC, showSettingsWindow } from '../settings/index.js';
 import { createTray, updateDockMenu } from './tray.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Same repo-root icon tray.js uses, master resolution (icon-32/96 are just
+// scaled variants for the tray/installer). Electron scales it for the dialog.
+const appIconPath = path.join(__dirname, '..', '..', 'icon.png');
 
 export async function changeLanguage(lng) {
   await i18next.changeLanguage(lng);
@@ -15,11 +24,12 @@ export function showStatus() {
 ${i18next.t('statusDialog.version')} ${app.getVersion()}
 ${i18next.t('statusDialog.server')} ${server ? i18next.t('statusDialog.running') : i18next.t('statusDialog.stopped')}
 ${i18next.t('statusDialog.port')} ${currentPort || i18next.t('statusDialog.notAssigned')}`;
-  
+
   dialog.showMessageBox({
     type: 'info',
     title: i18next.t('statusDialog.title'),
     message: status,
+    icon: appIconPath,
     buttons: ['OK']
   });
 }
