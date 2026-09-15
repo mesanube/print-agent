@@ -312,18 +312,47 @@ export async function printOrderUpdate(data, printerName = null) {
   const lineClass = (kind) => {
     if (kind === 'cancel') return 'line cancel';
     if (kind === 'modify') return 'line modify';
-    if (kind === 'note') return 'line modify'; // note reuses the modify look (info, not error)
+    // Same visual weight as modify (it's still a flagged line), but its own
+    // class in case it ever needs its own look later.
+    if (kind === 'note-update') return 'line note-update';
     return 'line add';
   };
   const linePrefix = (kind) => {
     if (kind === 'cancel') return 'CANCELAR:';
     if (kind === 'modify') return 'MODIFICAR:';
-    if (kind === 'note') return 'NOTA:';
+    // Same quantity, only the note changed: nothing about the dish itself
+    // changed, so this reads as "go re-read the note", not "redo the plate".
+    // Kept distinct from MODIFICAR: (see kitchenDiffToLines.js).
+    if (kind === 'note-update') return 'NOTA ACTUALIZADA:';
     return '+';
   };
 
   const linesHtml = lines
     .map((line) => {
+      // Order-level note change (kind: 'note'): NOT a per-item line, so it
+      // gets its own block instead of reusing the item-line template. Shows
+      // a diff, not just the new text: the old note struck through, the new
+      // note below it, so the cook doesn't have to remember what it used to
+      // say. Three banners for the three states kitchenDiffToLines.js emits
+      // (noteStatus): a brand-new note ('added', nothing to strike through),
+      // an edit ('modified', both shown), a clear ('removed', old text only).
+      if (line.kind === 'note') {
+        const banner =
+          line.noteStatus === 'added' ? '* NOTA AGREGADA *' :
+          line.noteStatus === 'removed' ? '* NOTA ELIMINADA *' :
+          '* NOTA MODIFICADA *';
+        const oldHtml = line.noteBefore
+          ? `<div class="order-note__old">${escapeHtml(line.noteBefore)}</div>`
+          : '';
+        const newHtml = line.noteAfter
+          ? `<div><b>NOTAS:</b> <i>${escapeHtml(line.noteAfter)}</i></div>`
+          : '';
+        return `<div class="order-note">
+          <div class="order-note__banner">${banner}</div>
+          ${oldHtml}
+          ${newHtml}
+        </div>`;
+      }
       const mods =
         line.modifiers && line.modifiers.length > 0
           ? `<div class="mods">${line.modifiers
@@ -331,17 +360,14 @@ export async function printOrderUpdate(data, printerName = null) {
               .filter(Boolean)
               .join(', ')}</div>`
           : '';
-      // A note line has no quantity — render only the prefix + text.
-      const qtyHtml =
-        line.kind === 'note' ? '' : `<span class="qty">${escapeHtml(line.quantity || 1)}x</span>`;
       // Per-unit note of the item, under its line and with the same layout as
       // the original chit. An add/cancel line is already one physical unit, so
       // its note belongs to that unit; a modify line is not split, so it
       // carries every note of the item joined by the client.
-      const noteHtml = line.note ? `<div class="note">${escapeHtml(line.note)}</div>` : '';
+      const noteHtml = line.note ? `<div class="note"><b>Nota:</b> ${escapeHtml(line.note)}</div>` : '';
       return `<div class="${lineClass(line.kind)}">
         <span class="prefix">${linePrefix(line.kind)}</span>
-        ${qtyHtml}
+        <span class="qty">${escapeHtml(line.quantity || 1)}x</span>
         <span class="name">${escapeHtml(line.name || 'Item')}</span>
         ${mods}
         ${noteHtml}
@@ -390,11 +416,21 @@ export async function printOrderUpdate(data, printerName = null) {
     .meta { margin: 6px 0; }
     .line { padding: 4px 0; border-bottom: 1px dashed #000; display: flex; gap: 6px; flex-wrap: wrap; }
     .line.cancel { background: #000; color: #fff; padding: 4px; }
-    .line.modify { border-left: 6px solid #000; padding-left: 6px; }
     .mods { width: 100%; font-weight: normal; font-size: 14px; padding-left: 12px; }
     /* Per-unit note. pre-wrap keeps the typed line breaks, which collapse
-       otherwise, and the indent matches the original chit's layout. */
-    .note { width: 100%; white-space: pre-wrap; font-style: italic; font-weight: normal; padding-left: 2em; }
+       otherwise. No indent: the "Nota:" label already marks it as subordinate
+       to the item line above it. */
+    .note { width: 100%; white-space: pre-wrap; font-style: italic; font-weight: normal; }
+    /* Order-level note change: bordered like .destination so it reads as its
+       own block, not an item line. i is not bold, matching the comanda's
+       NOTAS: block (modern-order.html) so the two look like the same concept. */
+    .order-note { border: 2px solid #000; padding: 6px 8px; margin: 8px 0; white-space: pre-wrap; }
+    .order-note__banner { text-align: center; font-size: 15px; margin-bottom: 4px; }
+    .order-note i { font-style: italic; font-weight: normal; }
+    /* The note as it read before the edit, struck through so the cook can see
+       what changed without having to remember the old text. Lighter weight
+       than the new text below so the eye lands on what matters now. */
+    .order-note__old { text-decoration: line-through; font-weight: normal; opacity: 0.7; margin-bottom: 4px; }
     .footer { margin-top: 16px; }
   </style>
 </head>

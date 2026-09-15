@@ -78,12 +78,13 @@
         /* Per-unit note, printed on its own row under the plate it belongs to.
            pre-wrap keeps the line breaks the waiter typed, which would collapse
            otherwise; normal weight separates it from the item name, since body
-           forces bold on everything; the indent hangs it under the plate. */
+           forces bold on everything. No indent: the "Nota:" label already marks
+           it as subordinate to the item above, an indent on top was redundant
+           and just wasted paper width. */
         .item-note {
             white-space: pre-wrap;
             font-style: italic;
             font-weight: normal;
-            padding-left: 2em;
         }
         .total-line {
             display: flex;

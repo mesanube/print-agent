@@ -14,6 +14,7 @@
   "statusDialog": {
     "title": "Estado del Agente de Impresión",
     "messageTitle": "Estado del Agente de Impresión:",
+    "version": "Versión:",
     "server": "Servidor:",
     "port": "Puerto:",
     "printWindow": "Ventana de Impresión:",
@@ -25,6 +26,7 @@
   },
   "settingsWindow": {
     "title": "Configuración de Impresora",
+    "version": "Versión {{version}}",
     "currentPrinter": "Impresora Actual:",
     "selectPrinter": "Seleccionar Impresora:",
     "testPrint": "Probar Plantilla",

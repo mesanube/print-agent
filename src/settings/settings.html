@@ -68,6 +68,7 @@
         .logo-size-slider, .qrcode-size-slider { width: 100%; margin: 10px 0; }
         .logo-size-labels, .qrcode-size-labels { display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-top: 4px; }
         .preview-info { margin-top: 8px; font-size: 12px; color: #666; text-align: center; }
+        .app-version { font-size: 12px; color: #666; margin-top: -4px; margin-bottom: 12px; user-select: text; }
 
         /* Collapsible section (width-adjust / calibration), styled like the
            disclosure box the client app uses for "Recetas" on the ingredient
@@ -114,7 +115,8 @@
     <div class="container">
         <div class="settings-column">
             <h1 data-i18n="settingsWindow.title"></h1>
-            
+            <div id="app-version" class="app-version"></div>
+
             <div class="section">
                 <label data-i18n="settingsWindow.currentPrinter"></label>
                 <div id="current-printer" class="current-printer" data-i18n="settingsWindow.loading"></div>
@@ -907,6 +909,15 @@
                 interpolation: { escapeValue: false }
             });
             updateContent();
+            // Shown so support can ask "what version do you have?" and the
+            // user can read/copy it straight off this window. Set after
+            // i18next.init() so the translated label is actually available.
+            if (config.version) {
+                const versionEl = document.getElementById('app-version');
+                if (versionEl) {
+                    versionEl.textContent = i18next.t('settingsWindow.version', { version: config.version });
+                }
+            }
             // await loadTemplates(); // DISABLED - using modern-receipt.html as default
             await loadLogoConfig();
             // Load the preview with the default template
