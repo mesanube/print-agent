@@ -1,0 +1,40 @@
+name: Auto-tag release on merge
+
+# Opt-in release automation: a PR merged into main with the "release" label
+# gets tagged with its package.json version, which triggers release.yml (that
+# workflow listens for `v*` tag pushes and builds/publishes the installer).
+# A PR without the label merges normally with no release side effect.
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Read version and tag if new
+        shell: bash
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG="v${PKG_VERSION}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; package.json version wasn't bumped in this PR, skipping release." >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG (auto-tagged from PR #${{ github.event.pull_request.number }})"
+          git push origin "$TAG"
