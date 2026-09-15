@@ -4,6 +4,17 @@ on:
   push:
     tags:
       - "v*"
+  # Lets auto-tag-release.yml invoke this directly after it creates+pushes a
+  # tag. A tag pushed with the default GITHUB_TOKEN does NOT fire the `push`
+  # trigger above (GitHub suppresses workflow runs triggered by the default
+  # token, to prevent infinite loops), so relying on that chain silently
+  # never runs a release. An explicit workflow_call has no such restriction.
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag to build/publish (e.g. v1.5.1). Defaults to the triggering push's tag."
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -15,6 +26,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -31,11 +44,13 @@ jobs:
         shell: bash
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG_VERSION="${TAG_REF#v}"
           if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION" >&2
+            echo "Tag $TAG_REF does not match package.json version $PKG_VERSION" >&2
             exit 1
           fi
+        env:
+          TAG_REF: ${{ inputs.tag || github.ref_name }}
 
       - name: Build and publish Windows installer
         run: yarn electron-builder --win --publish=always
