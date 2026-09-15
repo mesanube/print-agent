@@ -14,6 +14,7 @@
   "statusDialog": {
     "title": "Print Agent Status",
     "messageTitle": "Print Agent Status:",
+    "version": "Version:",
     "server": "Server:",
     "port": "Port:",
     "printWindow": "Print Window:",
@@ -25,6 +26,7 @@
   },
   "settingsWindow": {
     "title": "Printer Configuration",
+    "version": "Version {{version}}",
     "currentPrinter": "Current Printer:",
     "selectPrinter": "Select Printer:",
     "testPrint": "Test Template Print",

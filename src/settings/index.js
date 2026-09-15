@@ -126,7 +126,10 @@ async function loadPrinters() {
 
 export function setupSettingsIPC() {
   ipcMain.handle('get-app-config', () => {
-    return { platform: process.platform };
+    // Shown in the settings window so support can ask a customer "what
+    // version do you have?" and read it off screen instead of walking them
+    // through /status or right-click > about.
+    return { platform: process.platform, version: app.getVersion() };
   });
   ipcMain.handle('select-printer', async (event, printerName) => {
     try {

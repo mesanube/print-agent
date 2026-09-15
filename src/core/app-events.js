@@ -12,6 +12,7 @@ export function showStatus() {
   const server = getServer();
   const currentPort = getCurrentPort();
   const status = `${i18next.t('statusDialog.messageTitle')}
+${i18next.t('statusDialog.version')} ${app.getVersion()}
 ${i18next.t('statusDialog.server')} ${server ? i18next.t('statusDialog.running') : i18next.t('statusDialog.stopped')}
 ${i18next.t('statusDialog.port')} ${currentPort || i18next.t('statusDialog.notAssigned')}`;
   
