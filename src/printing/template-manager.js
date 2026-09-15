@@ -429,7 +429,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
           // older agent bakes the note into `name` instead and never sends this
           // field, so the check also covers every payload built before 1.5.0.
           if (item.note) {
-            itemsHtml += `<tr><td class="item-note">${escapeHtml(item.note)}</td></tr>`;
+            itemsHtml += `<tr><td class="item-note"><b>Nota:</b> ${escapeHtml(item.note)}</td></tr>`;
           }
         } else {
           itemsHtml += `<tr><td>${name.padEnd(20)} x${quantity}</td><td class="item-name align-bottom text-right">$${formatPrice(total)}</td></tr>`;
