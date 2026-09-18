@@ -317,13 +317,16 @@ export async function printOrderUpdate(data, printerName = null) {
     if (kind === 'note-update') return 'line note-update';
     return 'line add';
   };
-  const linePrefix = (kind) => {
+  const linePrefix = (kind, note) => {
     if (kind === 'cancel') return 'CANCELAR:';
     if (kind === 'modify') return 'MODIFICAR:';
     // Same quantity, only the note changed: nothing about the dish itself
     // changed, so this reads as "go re-read the note", not "redo the plate".
-    // Kept distinct from MODIFICAR: (see kitchenDiffToLines.js).
-    if (kind === 'note-update') return 'NOTA ACTUALIZADA:';
+    // Kept distinct from MODIFICAR: (see kitchenDiffToLines.js). A note-only
+    // edit now breaks down per unit there, so the noteless remainder line
+    // also carries kind 'note-update' -- it needs no banner, it is exactly
+    // the same plate as before.
+    if (kind === 'note-update' && note) return 'NOTA ACTUALIZADA:';
     return '+';
   };
 
@@ -366,7 +369,7 @@ export async function printOrderUpdate(data, printerName = null) {
       // carries every note of the item joined by the client.
       const noteHtml = line.note ? `<div class="note"><b>Nota:</b> ${escapeHtml(line.note)}</div>` : '';
       return `<div class="${lineClass(line.kind)}">
-        <span class="prefix">${linePrefix(line.kind)}</span>
+        <span class="prefix">${linePrefix(line.kind, line.note)}</span>
         <span class="qty">${escapeHtml(line.quantity || 1)}x</span>
         <span class="name">${escapeHtml(line.name || 'Item')}</span>
         ${mods}
