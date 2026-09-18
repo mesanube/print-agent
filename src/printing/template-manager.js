@@ -422,7 +422,9 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
         const total = price * quantity;
 
         if (receiptType == "order") {
-          itemsHtml += `<tr><td><span>${name.padEnd(20)} </span><span class="text-right">x${quantity}</span></td></tr>`;
+          // Quantity first, matching the UPDATE/CANCEL chit's "1x Nombre" layout
+          // (windows-printer.js) so a new order and its later edits read the same way.
+          itemsHtml += `<tr><td><span>${quantity}x </span><span>${name}</span></td></tr>`;
           // Per-unit note, on its own row under the plate it belongs to. The
           // client already split the line into one entry per physical unit, so
           // a row carrying a note is always a single plate. A terminal with an
