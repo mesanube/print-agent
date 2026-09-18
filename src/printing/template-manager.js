@@ -552,7 +552,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
       .replace('{{order.discountBlock}}', discountBlockHtml)
       .replace('{{order.total}}', formatPrice(Number(orderData.orderTotal) || 0))
       .replace('{{order.dailyOrderNumber}}', escapeHtml(orderData.dailyOrderNumber || orderData.orderNumber || '#--'))
-      .replace('{{order.notesBlock}}', orderData.notes ? `<b>NOTAS:</b> ${escapeHtml(orderData.notes)}<div class="line"></div>` : '')
+      .replace('{{order.notesBlock}}', orderData.notes ? `<b>NOTAS:</b> <i>${escapeHtml(orderData.notes)}</i><div class="line"></div>` : '')
       .replace('{{order.deliveryInfo}}', deliveryInfoHtml)
 
     // Replace invoice data placeholders (only if invoiceData is provided)

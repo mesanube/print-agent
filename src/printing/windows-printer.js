@@ -345,7 +345,7 @@ export async function printOrderUpdate(data, printerName = null) {
           ? `<div class="order-note__old">${escapeHtml(line.noteBefore)}</div>`
           : '';
         const newHtml = line.noteAfter
-          ? `<div><b>NOTAS:</b> ${escapeHtml(line.noteAfter)}</div>`
+          ? `<div><b>NOTAS:</b> <i>${escapeHtml(line.noteAfter)}</i></div>`
           : '';
         return `<div class="order-note">
           <div class="order-note__banner">${banner}</div>
@@ -419,12 +419,14 @@ export async function printOrderUpdate(data, printerName = null) {
     .mods { width: 100%; font-weight: normal; font-size: 14px; padding-left: 12px; }
     /* Per-unit note. pre-wrap keeps the typed line breaks, which collapse
        otherwise. No indent: the "Nota:" label already marks it as subordinate
-       to the item line above it. */
-    .note { width: 100%; white-space: pre-wrap; font-weight: normal; }
+       to the item line above it. Italic + bold, same styling as the order-level
+       NOTAS: block below so both read as the same concept. */
+    .note { width: 100%; white-space: pre-wrap; font-style: italic; font-weight: bold; }
     /* Order-level note change: bordered like .destination so it reads as its
        own block, not an item line. */
     .order-note { border: 2px solid #000; padding: 6px 8px; margin: 8px 0; white-space: pre-wrap; }
     .order-note__banner { text-align: center; font-size: 15px; margin-bottom: 4px; }
+    .order-note i { font-style: italic; font-weight: bold; }
     /* The note as it read before the edit, struck through so the cook can see
        what changed without having to remember the old text. Lighter weight
        than the new text below so the eye lands on what matters now. */
