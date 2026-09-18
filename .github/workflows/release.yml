@@ -56,3 +56,11 @@ jobs:
         run: yarn electron-builder --win --publish=always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # auto-tag-release.yml invokes this workflow via workflow_call from a
+          # `pull_request: closed` trigger, so GITHUB_EVENT_NAME is inherited as
+          # "pull_request". electron-builder's CI detection reads that and
+          # silently skips publishing (it assumes an untrusted fork PR build),
+          # even with --publish=always. This isn't a fork build, it only runs
+          # after merge to main with secrets already scoped via
+          # `secrets: inherit`, so forcing the publish here is safe.
+          PUBLISH_FOR_PULL_REQUEST: true
