@@ -152,3 +152,17 @@ This repo was split out specifically to publish through GitHub Releases so insta
 - Code signing matters more once this auto-updates: unsigned Windows/macOS builds trigger scarier OS warnings than a one-time manual install, and macOS auto-update requires a signed + notarized build regardless.
 - Versioning in `package.json` must stay in lockstep with what's tagged/released on GitHub, since `electron-updater` compares against it.
 - Keep the "no silent reroute" and per-terminal-local-state principles above in mind even here: an auto-update should never silently change which printer a terminal is bound to, or wipe `electron-store` state (printer selections, `registerId`) that only lives on that machine.
+
+## Customer-Facing Documentation — `docs/wiki-outbox/`
+
+Customer-visible print-agent behavior (agent setup, printer configuration, troubleshooting) gets a help-centre article in `docs/wiki-outbox/`, staged for the OS wiki where articles live. Articles are Spanish, copy-paste ready for the support site, polished tone. This file is self-contained: the convention below is all you need, no other repo's docs required.
+
+The outbox is transit, not storage. Write the article in the same pull request as the change; on merge to `main` the `publish-wiki-outbox` workflow opens a pull request against OS carrying it and clears the outbox. Mirror the wiki path under the outbox (`docs/wiki-outbox/product/features/mi-funcion.md` lands at `wiki/product/features/mi-funcion.md`), and carry the required frontmatter: `title`, `updated` (YYYY-MM-DD), `audience: cliente`, and `payload_slug` equal to the path under `wiki/product/` minus the extension, plus optional `sources`. A pull request with an article missing any of these fails its check before merge. See `docs/wiki-outbox/README.md` for the full convention.
+
+**You must do this whenever:**
+
+- **A feature ships** (new setup flow, new print mode, new troubleshooting path): write the article in `docs/wiki-outbox/` in the same pull request as the change.
+- **A fix changes or corrects what the docs claim**: stage the corrected article in `docs/wiki-outbox/` in the same pull request, not skipped because it is "just a bug fix." Fixes that leave the documented behavior accurate as written need nothing.
+- **A change removes documented behaviour**: include a retraction tombstone in `docs/wiki-outbox/_retract/` naming the article's `payload_slug` and the reason, in the same pull request.
+
+**Article shape:** one-line summary, why it matters (max 2 sentences), numbered steps referencing UI labels exactly, tips/FAQs, and related links to adjacent wiki articles by their wiki paths. The curator wires the indexes and cross-links on receipt. Pure refactors with no behavior change need no article.
