@@ -49,6 +49,8 @@ export function deriveIdentity(outboxRelPath) {
   return withoutPrefix.replace(/\.md$/, '');
 }
 
+// Map an outbox-relative path to the destination wiki path. The publish
+// workflow computes destinations with this function, so keep it exported.
 export function mapToWikiPath(outboxRelPath) {
   return `wiki/${outboxRelPath}`;
 }
@@ -70,7 +72,7 @@ function findMarketReferences(body) {
   return body
     .split('\n')
     .map((line, index) => ({ line: line.trim(), number: index + 1 }))
-    .filter(({ line }) => line.includes('market/'))
+    .filter(({ line }) => /(^|[^A-Za-z0-9_])market\//.test(line))
     .map(({ line, number }) => `line ${number}: ${line}`);
 }
 
@@ -119,6 +121,22 @@ export function validateArticle(outboxRelPath, text) {
   return errors;
 }
 
+// Payload slugs are the article path under wiki/product/ minus the extension.
+// The regex allows only lowercase letters, digits, dots, underscores, slashes
+// and hyphens, and because the first character cannot be a slash it also
+// rejects leading and absolute paths. Dots are allowed, so the explicit tests
+// below reject '..' segments and the .md suffix, which would otherwise reach
+// outside the wiki/product/ tree or double the extension.
+function isValidPayloadSlug(value) {
+  if (!/^[a-z0-9][a-z0-9._/-]*$/.test(value)) {
+    return false;
+  }
+  if (value.split('/').includes('..')) {
+    return false;
+  }
+  return !value.endsWith('.md');
+}
+
 // A retraction proposes removing an article from the wiki (F3). The curator
 // reviews it like any other change; the file only names the identity.
 export function validateTombstone(outboxRelPath, text) {
@@ -133,6 +151,13 @@ export function validateTombstone(outboxRelPath, text) {
   }
   if (!frontmatter.payload_slug) {
     errors.push(`missing required frontmatter key 'payload_slug': ${outboxRelPath}`);
+  } else if (!isValidPayloadSlug(frontmatter.payload_slug)) {
+    errors.push(
+      `payload_slug '${frontmatter.payload_slug}' must be the article path under ` +
+        `wiki/product/ minus the extension: lowercase letters, digits, dots, ` +
+        `underscores, slashes and hyphens, with no leading slash, no '..' segment ` +
+        `and no .md suffix: ${outboxRelPath}`,
+    );
   }
   if (!frontmatter.reason) {
     errors.push(`missing required frontmatter key 'reason': ${outboxRelPath}`);
@@ -156,9 +181,6 @@ export function listOutboxFiles(rootDir) {
         continue;
       }
       const rel = path.relative(rootDir, full).split(path.sep).join('/');
-      if (rel === 'README.md' || rel.endsWith('/README.md')) {
-        continue;
-      }
       if (rel.startsWith(`${RETRACT_DIR}/`)) {
         retractions.push(rel);
       } else {

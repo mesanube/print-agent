@@ -10,6 +10,14 @@ on:
     paths:
       - 'docs/wiki-outbox/**'
 
+# Publish runs are serialized per ref: two merges landing minutes apart must not
+# interleave their OS pull request or their outbox clear (KTD3's design keeps
+# concurrent writers out of one tree, and this keeps concurrent runs out of one
+# branch). PR validation runs keep their own group via github.ref.
+concurrency:
+  group: publish-wiki-outbox-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -17,6 +25,7 @@ jobs:
   validate:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,6 +37,7 @@ jobs:
   publish:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     env:
@@ -42,77 +52,139 @@ jobs:
           node-version: '22'
       - name: Validate staged outbox articles
         run: node scripts/wiki-outbox/validate.js docs/wiki-outbox
+      # Article and retraction values are contributor-controlled, so they are
+      # never interpolated into a command line: node writes them to files under
+      # $RUNNER_TEMP, and later steps read those file paths. Only a boolean
+      # emptiness marker becomes a step output, and it is consumed by if: guards.
       - name: Collect staged files
         id: collect
         run: |
-          {
-            echo "articles<<EOF"
-            node --input-type=module -e "
-              import { listOutboxFiles } from './scripts/wiki-outbox/outbox.js';
-              for (const rel of listOutboxFiles('docs/wiki-outbox').articles) console.log(rel);
-            "
-            echo "EOF"
-            echo "retractions<<EOF"
-            node --input-type=module -e "
-              import fs from 'node:fs';
-              import { listOutboxFiles, parseDocument } from './scripts/wiki-outbox/outbox.js';
-              for (const rel of listOutboxFiles('docs/wiki-outbox').retractions) {
-                const { frontmatter } = parseDocument(fs.readFileSync('docs/wiki-outbox/' + rel, 'utf8'));
-                console.log(frontmatter.payload_slug);
-              }
-            "
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import path from "node:path";
+            import { listOutboxFiles, mapToWikiPath, parseDocument } from "./scripts/wiki-outbox/outbox.js";
+            const outbox = "docs/wiki-outbox";
+            const temp = process.env.RUNNER_TEMP;
+            const lines = (rows) => rows.join("\n") + (rows.length ? "\n" : "");
+            const { articles, retractions } = listOutboxFiles(outbox);
+            fs.writeFileSync(path.join(temp, "outbox-articles.txt"), lines(articles));
+            fs.writeFileSync(
+              path.join(temp, "outbox-destinations.tsv"),
+              lines(articles.map((rel) => rel + "\t" + mapToWikiPath(rel))),
+            );
+            fs.writeFileSync(
+              path.join(temp, "outbox-retractions.tsv"),
+              lines(
+                retractions.map((rel) => {
+                  const { frontmatter } = parseDocument(fs.readFileSync(outbox + "/" + rel, "utf8"));
+                  return rel + "\t" + (frontmatter.payload_slug || "");
+                }),
+              ),
+            );
+          '
+          if [ -s "$RUNNER_TEMP/outbox-articles.txt" ] || [ -s "$RUNNER_TEMP/outbox-retractions.tsv" ]; then
+            echo "has_content=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_content=" >> "$GITHUB_OUTPUT"
+          fi
       - name: Stop when the outbox is empty
-        if: steps.collect.outputs.articles == '' && steps.collect.outputs.retractions == ''
+        if: steps.collect.outputs.has_content != '1'
         run: echo "Outbox empty, nothing to propose to OS."
       - name: Check out OS wiki
-        if: steps.collect.outputs.articles != '' || steps.collect.outputs.retractions != ''
+        if: steps.collect.outputs.has_content == '1'
         uses: actions/checkout@v4
         with:
           repository: ${{ env.OS_REPO }}
           token: ${{ secrets.OS_WIKI_TOKEN }}
           path: os-wiki
       - name: Open OS pull request carrying the outbox
-        if: steps.collect.outputs.articles != '' || steps.collect.outputs.retractions != ''
+        if: steps.collect.outputs.has_content == '1'
         env:
           GH_TOKEN: ${{ secrets.OS_WIKI_TOKEN }}
         run: |
-          BRANCH="wiki-outbox/${{ github.sha }}"
+          # The branch is machine-owned and derived from the source commit, so a
+          # re-run after a later step failed converges on the same branch instead
+          # of stranding a second one.
+          BRANCH="wiki-outbox/${GITHUB_SHA}"
           cd os-wiki
           git checkout -b "$BRANCH"
+          # Destinations come from outbox.js (mapToWikiPath), so the shell cannot
+          # drift from the identity convention the validator enforces.
+          while IFS=$'\t' read -r rel dest; do
+            [ -z "$rel" ] && continue
+            mkdir -p "$(dirname "$dest")"
+            cp "../docs/wiki-outbox/$rel" "$dest"
+            git add "$dest"
+          done < "$RUNNER_TEMP/outbox-destinations.tsv"
+          while IFS=$'\t' read -r rel slug; do
+            [ -z "$slug" ] && continue
+            # The slug names a path under wiki/product/, so a leading slash, a
+            # '..' segment, or any character outside the allowed alphabet would
+            # let it address a file the author never named. Reject them here as
+            # well as in the validator: this step stages deletions.
+            case "$slug" in
+              /*|*..*)
+                echo "Refusing retraction whose payload_slug escapes wiki/product: $slug" >&2
+                exit 1
+                ;;
+              *[!a-z0-9._/-]*)
+                echo "Refusing retraction with an unsupported payload_slug: $slug" >&2
+                exit 1
+                ;;
+            esac
+            target="wiki/product/${slug}.md"
+            if [ -f "$target" ]; then
+              git rm -q "$target"
+            fi
+          done < "$RUNNER_TEMP/outbox-retractions.tsv"
+          if git diff --cached --quiet; then
+            echo "Nothing staged for OS; the wiki already matches the outbox."
+          else
+            git -c user.name="mesanube-outbox" -c user.email="outbox@mesanube.ar" \
+              commit -m "docs(wiki): stage articles from ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+            # Force is safe here: the branch is machine-owned and its content is
+            # derived entirely from this source commit.
+            git push --force origin "$BRANCH"
+            if gh pr list --repo "$OS_REPO" --head "$BRANCH" --state open --json number --jq '.[0].number' | grep -q .; then
+              echo "OS pull request for $BRANCH is already open."
+            else
+              gh pr create --repo "$OS_REPO" --head "$BRANCH" --base main \
+                --title "docs(wiki): articles from ${GITHUB_REPOSITORY}@${GITHUB_SHA}" \
+                --body "Carries the wiki outbox staged in ${GITHUB_REPOSITORY} commit ${GITHUB_SHA}. The curator agent reviews and merges."
+            fi
+          fi
+      - name: Clear the outbox in the source repo
+        if: steps.collect.outputs.has_content == '1'
+        run: |
+          # Retraction files (first TSV column), not the payload_slug values they
+          # carry: the slug names a wiki page, the file is what leaves the outbox.
           while IFS= read -r rel; do
             [ -z "$rel" ] && continue
-            mkdir -p "wiki/$(dirname "$rel")"
-            cp "../docs/wiki-outbox/$rel" "wiki/$rel"
-            git add "wiki/$rel"
-          done <<< "${{ steps.collect.outputs.articles }}"
-          while IFS= read -r slug; do
-            [ -z "$slug" ] && continue
-            if [ -f "wiki/product/${slug}.md" ]; then
-              git rm -q "wiki/product/${slug}.md"
-            fi
-          done <<< "${{ steps.collect.outputs.retractions }}"
-          git -c user.name="mesanube-outbox" -c user.email="outbox@mesanube.ar" \
-            commit -m "docs(wiki): stage articles from ${{ github.repository }}@${{ github.sha }}"
-          git push origin "$BRANCH"
-          gh pr create --repo "$OS_REPO" --head "$BRANCH" --base main \
-            --title "docs(wiki): articles from ${{ github.repository }}@${{ github.sha }}" \
-            --body "Carries the wiki outbox staged in ${{ github.repository }} commit ${{ github.sha }}. The curator agent reviews and merges."
-      - name: Clear the outbox in the source repo
-        if: steps.collect.outputs.articles != '' || steps.collect.outputs.retractions != ''
-        run: |
-          for list in articles retractions; do
-            case "$list" in
-              articles) content="${{ steps.collect.outputs.articles }}" ;;
-              retractions) content="${{ steps.collect.outputs.retractions }}" ;;
-            esac
-            while IFS= read -r rel; do
-              [ -z "$rel" ] && continue
+            if [ -e "docs/wiki-outbox/$rel" ]; then
               git rm -q "docs/wiki-outbox/$rel"
-            done <<< "$content"
-          done
+            fi
+          done < "$RUNNER_TEMP/outbox-articles.txt"
+          while IFS=$'\t' read -r rel slug; do
+            [ -z "$rel" ] && continue
+            if [ -e "docs/wiki-outbox/$rel" ]; then
+              git rm -q "docs/wiki-outbox/$rel"
+            fi
+          done < "$RUNNER_TEMP/outbox-retractions.tsv"
+          if git diff --cached --quiet; then
+            echo "Outbox already empty; nothing to clear."
+            exit 0
+          fi
           git -c user.name="mesanube-outbox" -c user.email="outbox@mesanube.ar" \
             commit -m "chore(docs): clear wiki outbox after proposing to OS"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          # A merge landing between the rebase and the push rejects it, so retry
+          # rather than stranding the outbox on main with no re-trigger.
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              break
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "Could not push the outbox clear after 3 attempts; the outbox is still staged on main." >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done

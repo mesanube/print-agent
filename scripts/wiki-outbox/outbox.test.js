@@ -18,7 +18,7 @@ title: Notas por item
 updated: 2026-09-20
 audience: cliente
 payload_slug: features/notas-por-item
-sources: [docs/publishable/pedidos/notas-por-item.md]
+sources: [MES-1234, PR #189]
 ---
 
 # Notas por item
@@ -80,6 +80,17 @@ test('malformed updated date fails', () => {
   assert.ok(errors.some((message) => message.includes('updated')));
 });
 
+test('calendar-impossible updated dates fail', () => {
+  for (const badDate of ['2026-02-30', '2026-13-01']) {
+    const text = VALID_ARTICLE.replace('updated: 2026-09-20', `updated: ${badDate}`);
+    const errors = validateArticle('product/features/notas-por-item.md', text);
+    assert.ok(
+      errors.some((message) => message.includes('updated')),
+      `expected ${badDate} to be rejected as a calendar date`,
+    );
+  }
+});
+
 test('missing frontmatter block fails', () => {
   const errors = validateArticle('product/features/notas-por-item.md', '# Solo un titulo\n');
   assert.ok(errors.length > 0);
@@ -120,6 +131,26 @@ test('tombstone missing reason or slug fails', () => {
   assert.ok(validateTombstone('_retract/x.md', noSlug).some((m) => m.includes('payload_slug')));
 });
 
+test('tombstone payload_slug escaping the wiki tree is rejected', () => {
+  for (const slug of ['../escape', '/abs/slug', 'features/x.md']) {
+    const text = VALID_TOMBSTONE.replace(
+      'payload_slug: features/funcion-eliminada',
+      `payload_slug: ${slug}`,
+    );
+    const errors = validateTombstone('_retract/x.md', text);
+    assert.ok(errors.some((m) => m.includes('payload_slug')), `expected ${slug} to be rejected`);
+  }
+});
+
+test('tombstone payload_slug with a valid nested path passes', () => {
+  const text = VALID_TOMBSTONE.replace(
+    'payload_slug: features/funcion-eliminada',
+    'payload_slug: features/notas-por-item',
+  );
+  const errors = validateTombstone('_retract/x.md', text);
+  assert.deepEqual(errors, []);
+});
+
 test('parseDocument splits frontmatter from body', () => {
   const { frontmatter, body } = parseDocument(VALID_ARTICLE);
   assert.equal(frontmatter.title, 'Notas por item');
@@ -140,4 +171,44 @@ test('listOutboxFiles separates articles from retractions and skips the README',
   assert.deepEqual(retractions, ['_retract/b.md']);
 
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('listOutboxFiles skips non-markdown and nested README files', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'outbox-'));
+  fs.mkdirSync(path.join(root, 'product', 'features'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'product', 'notes.txt'), 'not markdown');
+  fs.writeFileSync(path.join(root, 'product', 'features', 'README.md'), '# Doc\n');
+  fs.writeFileSync(path.join(root, 'product', 'features', 'a.md'), VALID_ARTICLE);
+  fs.writeFileSync(path.join(root, 'product', 'b.md'), VALID_ARTICLE);
+
+  const { articles } = listOutboxFiles(root);
+  assert.deepEqual(articles, ['product/b.md', 'product/features/a.md']);
+
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('non-markdown path fails validation', () => {
+  const errors = validateArticle('product/notes.txt', '# Solo texto\n');
+  assert.ok(errors.some((message) => message.includes('not a markdown article')));
+});
+
+test('unclosed frontmatter fence fails validation', () => {
+  const errors = validateArticle('product/features/x.md', '---\ntitle: Sin cierre\n');
+  assert.ok(errors.some((message) => message.includes('missing frontmatter block')));
+});
+
+test('tombstone outside _retract/ fails', () => {
+  const errors = validateTombstone('product/x.md', VALID_TOMBSTONE);
+  assert.ok(errors.some((message) => message.includes('_retract')));
+});
+
+test('tombstone with no frontmatter block fails', () => {
+  const errors = validateTombstone('_retract/x.md', '# Solo titulo\n');
+  assert.ok(errors.some((message) => message.includes('missing frontmatter block')));
+});
+
+test('words containing market/ are not flagged as wiki/market references', () => {
+  const text = `${VALID_ARTICLE}\nLa distribucion se hace desde supermarket/central.md.\n`;
+  const errors = validateArticle('product/features/notas-por-item.md', text);
+  assert.deepEqual(errors, []);
 });

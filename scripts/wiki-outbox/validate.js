@@ -9,7 +9,10 @@ import { fileURLToPath } from 'node:url';
 
 import { listOutboxFiles, validateArticle, validateTombstone } from './outbox.js';
 
-const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+// The CLI lives at scripts/wiki-outbox/validate.js. Two dirname hops only
+// reach scripts/, so three are needed to land on the repository root and
+// resolve the default outbox to <repo>/docs/wiki-outbox.
+const repoRoot = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 const outboxDir = process.argv[2] ?? path.join(repoRoot, 'docs', 'wiki-outbox');
 
 if (!fs.existsSync(outboxDir)) {
