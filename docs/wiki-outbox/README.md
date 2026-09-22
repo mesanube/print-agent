@@ -2,7 +2,7 @@
 
 Bandeja de salida transitoria para la documentacion que vive en la wiki de OS (`wiki/`). No es un lugar de guardado: cada merge a `main` abre un pull request contra OS con lo que haya aca y despues vacia la bandeja. Un articulo que sigue aca despues de un merge es un error, no un patron.
 
-> **Para el equipo:** ver [`CLAUDE.md`](../CLAUDE.md#documentacion-para-clientes--docswiki-outbox) para las reglas de cuando crear o actualizar un articulo.
+> **Para el equipo:** ver [`CLAUDE.md`](../CLAUDE.md#customer-facing-documentation-docswiki-outbox) para las reglas de cuando crear o actualizar un articulo.
 
 ## Disposicion
 

@@ -153,7 +153,7 @@ This repo was split out specifically to publish through GitHub Releases so insta
 - Versioning in `package.json` must stay in lockstep with what's tagged/released on GitHub, since `electron-updater` compares against it.
 - Keep the "no silent reroute" and per-terminal-local-state principles above in mind even here: an auto-update should never silently change which printer a terminal is bound to, or wipe `electron-store` state (printer selections, `registerId`) that only lives on that machine.
 
-## Customer-Facing Documentation — `docs/wiki-outbox/`
+## Customer-Facing Documentation: `docs/wiki-outbox/`
 
 Customer-visible print-agent behavior (agent setup, printer configuration, troubleshooting) gets a help-centre article in `docs/wiki-outbox/`, staged for the OS wiki where articles live. Articles are Spanish, copy-paste ready for the support site, polished tone. This file is self-contained: the convention below is all you need, no other repo's docs required.
 
