@@ -395,7 +395,10 @@ export async function printOrderUpdate(data, printerName = null) {
       '<div class="destination">-- MOSTRADOR --</div>' +
       (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
   } else {
-    destinationHtml = `<div class="meta">Mesa: ${escapeHtml(order.table || '--')}</div>`;
+    // A dine-in order can carry a customer name too (MES-321).
+    destinationHtml =
+      `<div class="meta">Mesa: ${escapeHtml(order.table || '--')}</div>` +
+      (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
   }
 
   // Llamador (Order.callButton): independent of the destination banner above,
