@@ -241,8 +241,10 @@ async function doPrintHtml(htmlContent, printerName = null) {
   if (DRY_RUN) {
     console.log(`[Print DEBUG] PRINT_AGENT_DRY_RUN=1 — capturing PNG for printer "${printerName || '(none)'}" instead of printing.`);
     const image = await captureHtmlOnDemand(htmlContent, printerName);
-    await dumpPngForReview(image.toPNG(), printerName);
-    return;
+    const file = await dumpPngForReview(image.toPNG(), printerName);
+    // Signal the dry run so the dispatcher (index.js) logs "preview written"
+    // instead of "printed successfully" — a PNG is not a printed job.
+    return { dryRun: true, file };
   }
 
   const selectedPrinter = printerName || getSelectedPrinter();
@@ -290,7 +292,7 @@ export async function printOrder(data, printerName = null) {
   const effectivePrinter = printerName || getSelectedPrinter();
   // Use modern-order.html template for kitchen orders
   const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-order.html', "order", undefined, effectivePrinter);
-  await printHtml(html, effectivePrinter);
+  return printHtml(html, effectivePrinter);
 }
 
 /**
@@ -394,11 +396,13 @@ export async function printOrderUpdate(data, printerName = null) {
     destinationHtml =
       '<div class="destination">-- MOSTRADOR --</div>' +
       (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
-  } else {
+  } else if (order.orderType === 'dine-in') {
     // A dine-in order can carry a customer name too (MES-321).
     destinationHtml =
       `<div class="meta">Mesa: ${escapeHtml(order.table || '--')}</div>` +
       (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
+  } else {
+    destinationHtml = `<div class="meta">Mesa: ${escapeHtml(order.table || '--')}</div>`;
   }
 
   // Llamador (Order.callButton): independent of the destination banner above,
@@ -456,7 +460,7 @@ export async function printOrderUpdate(data, printerName = null) {
 </body>
 </html>`;
 
-  await printHtml(html, printerName);
+  return printHtml(html, printerName);
 }
 
 export async function printInvoice(data, printerName = null) {
@@ -496,8 +500,12 @@ export async function printTestPage(restaurantData = null) {
     name: "Test Restaurant",
     address: "123 Main Street, Anytown",
   };
+  // A kitchen comanda so the test page exercises the order render path
+  // (receiptType === 'order') including the dine-in "Nombre:" row (MES-321).
   const testOrder = {
+    orderType: 'dine-in',
     table: 'TEST',
+    deliveryName: 'Test Cliente',
     waiter: { name: 'Test User' },
     items: [
       { name: 'Test Item 1', quantity: 1, price: 5.00 },
@@ -507,6 +515,6 @@ export async function printTestPage(restaurantData = null) {
     notes: 'This is a test print from a template.'
   };
 
-  const html = await generateHtmlFromTemplate(testOrder, restaurant, null, "receipt", undefined, selectedPrinter);
-  await printHtml(html, selectedPrinter);
+  const html = await generateHtmlFromTemplate(testOrder, restaurant, null, "order", undefined, selectedPrinter);
+  return printHtml(html, selectedPrinter);
 }

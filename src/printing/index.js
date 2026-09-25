@@ -41,12 +41,17 @@ export async function printReceipt(data, printerName = null) {
  */
 export async function printOrder(data, printerName = null) {
   try {
+    let dryRun = null;
     if (useWindowsPath) {
-      await printOrderWindows(data, printerName);
+      dryRun = await printOrderWindows(data, printerName);
     } else {
       await printOrderUnix(data, printerName);
     }
-    console.log(`[Print] ✓ Order printed successfully to ${printerName || 'default printer'}`);
+    if (dryRun) {
+      console.log(`[Print DEBUG] Preview written to ${dryRun.file} (not printed)`);
+    } else {
+      console.log(`[Print] ✓ Order printed successfully to ${printerName || 'default printer'}`);
+    }
   } catch (error) {
     console.error('[Print] ✗ Order printing failed:', error);
     throw new Error(`Print order failed: ${error.message}`);
@@ -61,12 +66,17 @@ export async function printOrder(data, printerName = null) {
  */
 export async function printOrderUpdate(data, printerName = null) {
   try {
+    let dryRun = null;
     if (useWindowsPath) {
-      await printOrderUpdateWindows(data, printerName);
+      dryRun = await printOrderUpdateWindows(data, printerName);
     } else {
       await printOrderUpdateUnix(data, printerName);
     }
-    console.log(`[Print] ✓ Update chit printed successfully to ${printerName || 'default printer'}`);
+    if (dryRun) {
+      console.log(`[Print DEBUG] Update-chit preview written to ${dryRun.file} (not printed)`);
+    } else {
+      console.log(`[Print] ✓ Update chit printed successfully to ${printerName || 'default printer'}`);
+    }
   } catch (error) {
     console.error('[Print] ✗ Update chit printing failed:', error);
     throw new Error(`Print update failed: ${error.message}`);
@@ -155,12 +165,17 @@ export async function printCalibrationPage(printerName = null) {
  */
 export async function printTestPage(restaurantData = null) {
   try {
+    let dryRun = null;
     if (useWindowsPath) {
-      await printTestPageWindows(restaurantData);
+      dryRun = await printTestPageWindows(restaurantData);
     } else {
       await printTestPageUnix(restaurantData);
     }
-    console.log('[Print Test] ✓ Template test page printed successfully');
+    if (dryRun) {
+      console.log(`[Print Test] Template test written to ${dryRun.file} (not printed)`);
+    } else {
+      console.log('[Print Test] ✓ Template test page printed successfully');
+    }
   } catch (error) {
     console.error('[Print Test] ✗ Template test failed:', error);
     throw new Error(`Template test failed: ${error.message}`);
