@@ -507,6 +507,12 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
     if (receiptType === 'order' && orderData.table) {
       tableRowHtml = `<tr><td class="label">Mesa:</td><td class="value">${escapeHtml(orderData.table)}</td></tr>`;
     }
+    // A dine-in order can carry a customer name (MES-321). It rides right
+    // under the Mesa row, on the comanda only; the customer receipt is
+    // unchanged. Other order types already print the name in their banner.
+    if (receiptType === 'order' && orderData.orderType === 'dine-in' && orderData.deliveryName) {
+      tableRowHtml += `<tr><td class="label">Nombre:</td><td class="value">${escapeHtml(orderData.deliveryName)}</td></tr>`;
+    }
 
     // Llamador (Order.callButton): a buzzer/caller number handed to the
     // customer, usable on dine-in and mostrador orders. Kitchen-comanda only
