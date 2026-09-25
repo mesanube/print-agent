@@ -23,7 +23,7 @@ Electron desktop service that exposes a local HTTP API for the Mesanube POS clie
 - `yarn build` / `yarn build:win` / `yarn build:mac` / `yarn build:linux` — `electron-builder` packaging (publishes if a `publish` config is set — see Release/Auto-update below).
 - `yarn dist` / `yarn dist:mac` / `yarn dist:linux` — Build distributables without publishing (`--publish=never`).
 
-No test framework. Manual verification via the dev `/test` endpoint and the in-app settings UI.
+No test framework. Manual verification via the dev `/test` endpoint and the in-app settings UI. Env flags: `PRINT_AGENT_DRY_RUN=1` captures the rendered print as a PNG in `~/print-agent-debug/` instead of sending it to the printer; `USE_WINDOWS_PATH=1` routes the order-type prints (comanda, update chit, test page) through the Windows renderer path regardless of host OS, so on macOS you can combine both to preview the comandas as images without a printer or a Windows machine.
 
 ## Architecture
 

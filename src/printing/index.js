@@ -3,6 +3,15 @@ import { printReceipt as printReceiptUnix, printOrder as printOrderUnix, printOr
 
 const isWindows = process.platform === 'win32';
 
+// USE_WINDOWS_PATH routes the order-type prints (comanda, update chit, test
+// page) through the Windows renderer path regardless of host OS. Dry-run
+// (PRINT_AGENT_DRY_RUN=1) lives there, so on macOS you can preview the HTML
+// receipts as PNGs/JPEGs without a connected printer or a Windows machine.
+// Windows-only features that reach the native binding (cash-close, day-Z,
+// calibration) stay gated on real `isWindows` below, since that module does
+// not exist off-Windows.
+const useWindowsPath = isWindows || process.env.USE_WINDOWS_PATH === '1';
+
 /**
  * Prints a receipt with order and restaurant data.
  * Automatically selects the correct printing method based on the OS.
@@ -32,7 +41,7 @@ export async function printReceipt(data, printerName = null) {
  */
 export async function printOrder(data, printerName = null) {
   try {
-    if (isWindows) {
+    if (useWindowsPath) {
       await printOrderWindows(data, printerName);
     } else {
       await printOrderUnix(data, printerName);
@@ -52,7 +61,7 @@ export async function printOrder(data, printerName = null) {
  */
 export async function printOrderUpdate(data, printerName = null) {
   try {
-    if (isWindows) {
+    if (useWindowsPath) {
       await printOrderUpdateWindows(data, printerName);
     } else {
       await printOrderUpdateUnix(data, printerName);
@@ -146,7 +155,7 @@ export async function printCalibrationPage(printerName = null) {
  */
 export async function printTestPage(restaurantData = null) {
   try {
-    if (isWindows) {
+    if (useWindowsPath) {
       await printTestPageWindows(restaurantData);
     } else {
       await printTestPageUnix(restaurantData);
