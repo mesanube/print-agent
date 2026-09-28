@@ -2,6 +2,8 @@
 
 Electron desktop service that exposes a local HTTP API for the Mesanube POS client/server to print receipts, orders (comandas), and invoices to thermal/native printers. Runs in the system tray on the cashier's machine; the web client posts to it on `localhost:8847`–`8857`.
 
+> **Supported platform: Windows.** Windows is the only supported deployment target for restaurants today. The Unix/macOS render paths (`unix-printer.js`, `build:mac`/`build:linux`) exist for development only and are not a supported deployment target; a feature that changes printed output must still land in both implementations (project-wide convention), but only the Windows path is exercised in production.
+
 **This repo is standalone** (split out from the main `mesanube` monorepo to publish releases via GitHub Releases / electron-updater). It has no access to the main repo's `CLAUDE.md`, `docs/plans/`, or `docs/solutions/` — this file is self-contained. If you need the client or server source to understand a contract described below, they live in the separate `mesanube` repo (`client/` = Ionic React, `server/` = Express + MongoDB).
 
 > **Stack note**: no Ionic, no MongoDB, no Express. **Electron 28** + **Hono** + **electron-store** + **node-thermal-printer**. JavaScript only, ES modules.
@@ -23,7 +25,7 @@ Electron desktop service that exposes a local HTTP API for the Mesanube POS clie
 - `yarn build` / `yarn build:win` / `yarn build:mac` / `yarn build:linux` — `electron-builder` packaging (publishes if a `publish` config is set — see Release/Auto-update below).
 - `yarn dist` / `yarn dist:mac` / `yarn dist:linux` — Build distributables without publishing (`--publish=never`).
 
-No test framework. Manual verification via the dev `/test` endpoint and the in-app settings UI.
+No test framework. Manual verification via the dev `/test` endpoint and the in-app settings UI (`/test` renders a dine-in comanda, so the "Nombre:" row is reachable from the cheap path). Env flags: `PRINT_AGENT_DRY_RUN=1` captures the rendered print as a PNG in `~/print-agent-debug/` instead of sending it to the printer; `USE_WINDOWS_PATH=1` routes the order-type prints (comanda, update chit, test page) through the Windows renderer path regardless of host OS, so on macOS you can combine both to preview the comandas as images without a printer or a Windows machine. Two caveats: the dry-run preview covers the Windows renderer only (the unsupported unix path is not locally previewable), and `USE_WINDOWS_PATH` is honored on non-Windows hosts whenever it is literally `'1'` regardless of the dry-run flag, so only set it when you intend the Windows preview path.
 
 ## Architecture
 

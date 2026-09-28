@@ -3,6 +3,15 @@ import { printReceipt as printReceiptUnix, printOrder as printOrderUnix, printOr
 
 const isWindows = process.platform === 'win32';
 
+// USE_WINDOWS_PATH routes the order-type prints (comanda, update chit, test
+// page) through the Windows renderer path regardless of host OS. Dry-run
+// (PRINT_AGENT_DRY_RUN=1) lives there, so on macOS you can preview the HTML
+// receipts as PNGs/JPEGs without a connected printer or a Windows machine.
+// Windows-only features that reach the native binding (cash-close, day-Z,
+// calibration) stay gated on real `isWindows` below, since that module does
+// not exist off-Windows.
+const useWindowsPath = isWindows || process.env.USE_WINDOWS_PATH === '1';
+
 /**
  * Prints a receipt with order and restaurant data.
  * Automatically selects the correct printing method based on the OS.
@@ -32,12 +41,17 @@ export async function printReceipt(data, printerName = null) {
  */
 export async function printOrder(data, printerName = null) {
   try {
-    if (isWindows) {
-      await printOrderWindows(data, printerName);
+    let dryRun = null;
+    if (useWindowsPath) {
+      dryRun = await printOrderWindows(data, printerName);
     } else {
       await printOrderUnix(data, printerName);
     }
-    console.log(`[Print] ✓ Order printed successfully to ${printerName || 'default printer'}`);
+    if (dryRun) {
+      console.log(`[Print DEBUG] Preview written to ${dryRun.file} (not printed)`);
+    } else {
+      console.log(`[Print] ✓ Order printed successfully to ${printerName || 'default printer'}`);
+    }
   } catch (error) {
     console.error('[Print] ✗ Order printing failed:', error);
     throw new Error(`Print order failed: ${error.message}`);
@@ -52,12 +66,17 @@ export async function printOrder(data, printerName = null) {
  */
 export async function printOrderUpdate(data, printerName = null) {
   try {
-    if (isWindows) {
-      await printOrderUpdateWindows(data, printerName);
+    let dryRun = null;
+    if (useWindowsPath) {
+      dryRun = await printOrderUpdateWindows(data, printerName);
     } else {
       await printOrderUpdateUnix(data, printerName);
     }
-    console.log(`[Print] ✓ Update chit printed successfully to ${printerName || 'default printer'}`);
+    if (dryRun) {
+      console.log(`[Print DEBUG] Update-chit preview written to ${dryRun.file} (not printed)`);
+    } else {
+      console.log(`[Print] ✓ Update chit printed successfully to ${printerName || 'default printer'}`);
+    }
   } catch (error) {
     console.error('[Print] ✗ Update chit printing failed:', error);
     throw new Error(`Print update failed: ${error.message}`);
@@ -146,12 +165,17 @@ export async function printCalibrationPage(printerName = null) {
  */
 export async function printTestPage(restaurantData = null) {
   try {
-    if (isWindows) {
-      await printTestPageWindows(restaurantData);
+    let dryRun = null;
+    if (useWindowsPath) {
+      dryRun = await printTestPageWindows(restaurantData);
     } else {
       await printTestPageUnix(restaurantData);
     }
-    console.log('[Print Test] ✓ Template test page printed successfully');
+    if (dryRun) {
+      console.log(`[Print Test] Template test written to ${dryRun.file} (not printed)`);
+    } else {
+      console.log('[Print Test] ✓ Template test page printed successfully');
+    }
   } catch (error) {
     console.error('[Print Test] ✗ Template test failed:', error);
     throw new Error(`Template test failed: ${error.message}`);

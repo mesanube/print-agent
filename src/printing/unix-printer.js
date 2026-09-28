@@ -195,6 +195,11 @@ export async function printOrderUpdate(data, printerName = null) {
     destinationText =
       '-- MOSTRADOR --\n' +
       (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
+  } else if (order.orderType === 'dine-in') {
+    // A dine-in order can carry a customer name too (MES-321).
+    destinationText =
+      `Mesa: ${order.table || '--'}\n` +
+      (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
   } else {
     destinationText = `Mesa: ${order.table || '--'}\n`;
   }
