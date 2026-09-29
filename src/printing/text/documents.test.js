@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { layoutContext, buildReceipt, buildInvoice, buildOrder, buildOrderUpdate, buildCashClose, buildDayZ } from './documents.js';
 import { encodeDocument } from './text-encoder.js';
+import { buildTextTestPage } from './test-page.js';
 
 const texts = (blocks) => blocks.filter((b) => b.type === 'text').map((b) => b.text);
 const indexOf = (blocks, predicate) => blocks.findIndex(predicate);
@@ -187,5 +188,51 @@ describe('receipt settings per location (R13, R14)', () => {
     const ascii = Buffer.from(bytes).toString('latin1');
     expect(ascii).toContain('TOTAL');
     expect(ascii).toContain('Cafe x1');
+  });
+});
+
+describe('every document encodes to ESC/POS bytes', () => {
+  const order = { dailyOrderNumber: 9, orderType: 'dine-in', table: '2', items: [{ name: 'Cafe', price: 1500, quantity: 1, note: 'sin azucar' }], orderTotal: 1500, notes: 'apurar' };
+  const summary = {
+    registerName: 'Caja 1', businessDate: '2026-09-29',
+    sales: { total: 5000, totalDiscounts: 500, discountCount: 1, byMethod: [{ name: 'cash', total: 5000 }] },
+    cashIn: { total: 100, items: [{ label: 'Aporte', amount: 100 }] }, cashOut: { total: 0, items: [] },
+    expenses: { currentAccount: { total: 50, items: [{ description: 'Hielo', supplier: 'Frio SA', amount: 50, documentType: 'invoice' }] } },
+    waiterSales: [{ label: 'Ana', amount: 5000 }], shifts: [{ status: 'closed', registerName: 'Caja 1', variance: 0 }],
+    cashCount: { closedShifts: 1, openShifts: 1 }, closeReason: 'ok',
+  };
+  const lines = [
+    { kind: 'add', quantity: 1, name: 'Flan', modifiers: [{ name: 'con dulce' }] },
+    { kind: 'cancel', quantity: 1, name: 'Coca' },
+    { kind: 'note', noteStatus: 'modified', noteBefore: 'viejo', noteAfter: 'nuevo' },
+  ];
+  const cases = {
+    receipt: (ctx) => buildReceipt({ order, restaurant: { name: 'Bar' } }, ctx),
+    invoice: (ctx) => buildInvoice({ order, restaurant: { name: 'Bar' }, invoiceData }, ctx),
+    order: (ctx) => buildOrder({ order }, ctx),
+    update: (ctx) => buildOrderUpdate({ order, lines }, ctx),
+    cashClose: (ctx) => buildCashClose({ summary, restaurant: { name: 'Bar' } }, ctx),
+    dayZ: (ctx) => buildDayZ({ summary, restaurant: { name: 'Bar' } }, ctx),
+    testPage: (ctx) => buildTextTestPage({ printerName: 'Caja' }, ctx),
+  };
+  for (const paper of ['80mm', '58mm']) {
+    for (const [name, build] of Object.entries(cases)) {
+      it(`${name} on ${paper}`, () => {
+        const ctx = layoutContext({ paper, settings: { fontSize: 'grande', footerMessage: 'Gracias' } });
+        const bytes = encodeDocument(build(ctx), ctx, { cutter: true, logo: null });
+        expect(bytes.length).toBeGreaterThan(50);
+      });
+    }
+  }
+});
+
+describe('logo raster', () => {
+  it('encodes the logo image when one is loaded', () => {
+    const ctx = layoutContext({ settings: { logoUrl: 'https://cdn/logo.png' } });
+    const blocks = buildReceipt({ order: { items: [], orderTotal: 0 }, restaurant: { name: 'Bar' } }, ctx);
+    const logo = { data: new Uint8Array(64 * 16 * 4).fill(0), width: 64, height: 16 };
+    const withLogo = encodeDocument(blocks, ctx, { cutter: false, logo });
+    const without = encodeDocument(blocks, ctx, { cutter: false, logo: null });
+    expect(withLogo.length).toBeGreaterThan(without.length + 64 * 16 / 8 - 1);
   });
 });
