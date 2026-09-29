@@ -49,6 +49,9 @@ function getOrCreatePrintWindow(printerName = null) {
       webPreferences: {
         offscreen: true, // Render offscreen for better performance and no flashing
         nodeIntegration: false,
+        // A hidden window throttles requestAnimationFrame by default, which
+        // would stall the render-ready signal (waitForRenderer).
+        backgroundThrottling: false,
         zoomFactor: geometry.zoomFactor,
       }
     });
@@ -69,6 +72,33 @@ export function destroyPrintWindow() {
   }
 }
 
+// Render readiness is signalled by the renderer itself (KTD3): fonts loaded,
+// every <img> decoded (logo, QR as image) and two animation frames so layout
+// and paint have run. The cap only fires if a signal never arrives on some
+// machine; in the normal case it is never reached.
+const RENDER_SIGNAL_CAP_MS = 1000;
+const NEXT_FRAME_SCRIPT = `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))`;
+const CONTENT_READY_SCRIPT = `(async () => {
+  await document.fonts.ready;
+  await Promise.all(Array.from(document.images).map((img) => img.decode().catch(() => {})));
+  return ${NEXT_FRAME_SCRIPT};
+})()`;
+
+async function waitForRenderer(printWindow, script, label) {
+  let capTimer;
+  const cap = new Promise((resolve) => {
+    capTimer = setTimeout(() => {
+      console.warn(`[Windows Print] Render signal "${label}" did not arrive within ${RENDER_SIGNAL_CAP_MS}ms, continuing`);
+      resolve(false);
+    }, RENDER_SIGNAL_CAP_MS);
+  });
+  try {
+    await Promise.race([printWindow.webContents.executeJavaScript(script), cap]);
+  } finally {
+    clearTimeout(capTimer);
+  }
+}
+
 /**
  * Renders HTML content in the shared browser window and captures it as a PNG.
  * Reuses a single BrowserWindow across all print jobs to prevent resource leaks.
@@ -82,8 +112,9 @@ async function captureHtmlOnDemand(htmlContent, printerName = null) {
 
     await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
-    // Wait longer for content to render and settle (increased for QR code SVG rendering)
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Wait for the content to actually be painted (fonts, decoded logo, QR)
+    // instead of a fixed delay (R1).
+    await waitForRenderer(printWindow, CONTENT_READY_SCRIPT, 'content');
 
     // Get the actual height of the content
     // IMPORTANT: Since zoomFactor is 2.0, we need to account for this in measurements
@@ -169,8 +200,8 @@ async function captureHtmlOnDemand(htmlContent, printerName = null) {
     // exactly one point per pixel.
     printWindow.setContentSize(geometry.dots, finalHeight);
 
-    // Wait a bit longer for window resize and re-render to complete (increased for QR code)
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Wait for the first frame painted at the new size.
+    await waitForRenderer(printWindow, NEXT_FRAME_SCRIPT, 'resize');
 
     // Verify the window actually resized
     const [actualWidth, actualHeight] = printWindow.getContentSize();
