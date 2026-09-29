@@ -136,3 +136,56 @@ describe('encodeDocument', () => {
     expect(bytes.length - cuts[0]).toBeLessThanOrEqual(4);
   });
 });
+
+describe('receipt settings per location (R13, R14)', () => {
+  const order = { items: [{ name: 'Cafe', price: 1500, quantity: 1 }], orderTotal: 1500 };
+  const settings = { fontSize: 'grande', footerMessage: 'Seguinos en @pentos' };
+
+  it('Covers AE4: grande is double height on both widths; totals double width only on 80mm', () => {
+    const wide = buildReceipt({ order, restaurant: {} }, layoutContext({ paper: '80mm', settings }));
+    const narrow = buildReceipt({ order, restaurant: {} }, layoutContext({ paper: '58mm', settings }));
+    const item = (blocks) => blocks.find((b) => b.type === 'text' && b.text.startsWith('Cafe x1'));
+    const total = (blocks) => blocks.find((b) => b.type === 'text' && b.text.startsWith('TOTAL'));
+    expect(item(wide).height).toBe(2);
+    expect(item(narrow).height).toBe(2);
+    expect(item(wide).width ?? 1).toBe(1);
+    expect(item(narrow).width ?? 1).toBe(1);
+    expect(total(wide).width).toBe(2);
+    expect(total(narrow).width ?? 1).toBe(1);
+    expect(total(narrow).height).toBe(2);
+  });
+
+  it('normal keeps body text at 1x', () => {
+    const blocks = buildReceipt({ order, restaurant: {} }, layoutContext({ paper: '80mm', settings: { fontSize: 'normal' } }));
+    expect(blocks.find((b) => b.type === 'text' && b.text.startsWith('Cafe x1')).height).toBe(1);
+  });
+
+  it('prints the configured footer before the end of the ticket', () => {
+    const blocks = buildReceipt({ order, restaurant: {} }, layoutContext({ settings }));
+    const footer = indexOf(blocks, (b) => b.type === 'text' && b.text.includes('Seguinos en @pentos'));
+    const lastText = blocks.map((b) => b.type).lastIndexOf('text');
+    expect(footer).toBe(lastText);
+  });
+
+  it('adds no extra line when there is no footer', () => {
+    const withFooter = buildReceipt({ order, restaurant: {} }, layoutContext({ settings }));
+    const without = buildReceipt({ order, restaurant: {} }, layoutContext({ settings: { fontSize: 'grande' } }));
+    expect(texts(withFooter).length - texts(without).length).toBe(1);
+  });
+
+  it('adds a logo block only when the location has a logo', () => {
+    const withLogo = buildReceipt({ order, restaurant: {} }, layoutContext({ settings: { logoUrl: 'https://cdn/logo.png' } }));
+    const without = buildReceipt({ order, restaurant: {} }, layoutContext());
+    expect(withLogo[0]).toEqual({ type: 'logo', url: 'https://cdn/logo.png' });
+    expect(without.some((b) => b.type === 'logo')).toBe(false);
+  });
+
+  it('Covers U9: a ticket whose logo could not be loaded still encodes whole', () => {
+    const ctx = layoutContext({ settings: { logoUrl: 'https://cdn/missing.png' } });
+    const blocks = buildReceipt({ order, restaurant: { name: 'Bar' } }, ctx);
+    const bytes = encodeDocument(blocks, ctx, { cutter: true, logo: null });
+    const ascii = Buffer.from(bytes).toString('latin1');
+    expect(ascii).toContain('TOTAL');
+    expect(ascii).toContain('Cafe x1');
+  });
+});

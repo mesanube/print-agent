@@ -14,6 +14,7 @@ import { printBitmap as printBitmapRaw, writeRaw } from './transports/raw-transp
 import { layoutContext, buildReceipt, buildInvoice, buildOrder, buildOrderUpdate, buildCashClose, buildDayZ } from './text/documents.js';
 import { encodeDocument } from './text/text-encoder.js';
 import { buildTextTestPage } from './text/test-page.js';
+import { logoCache } from './text/logo-cache.js';
 
 const TRANSPORTS = { gdi: printBitmapGdi, raw: printBitmapRaw };
 
@@ -351,7 +352,9 @@ async function printText(build, docData, printerName = null, timing = null) {
   if (DRY_RUN) return dumpTextForReview(blocks, selectedPrinter);
 
   await requireSystemPrinter(selectedPrinter);
-  const bytes = encodeDocument(blocks, ctx, { cutter: getPrinterCutter(selectedPrinter), logo: null });
+  const logoUrl = ctx.settings.logoUrl;
+  const logo = logoUrl ? await logoCache.get(logoUrl, getPaperGeometry(selectedPrinter).dots) : null;
+  const bytes = encodeDocument(blocks, ctx, { cutter: getPrinterCutter(selectedPrinter), logo });
   timing?.mark('armado');
   console.log(`[Windows Print] Printing to ${selectedPrinter} as ESC/POS text`);
   writeRaw(selectedPrinter, bytes, 'Mesanube ticket');
