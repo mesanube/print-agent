@@ -4,7 +4,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { BrowserWindow } from 'electron';
-import { getSelectedPrinter, getCutterEnabled, getPrinterTransport } from '../core/store.js';
+import { getSelectedPrinter, getPrinterCutter, getPrinterTransport } from '../core/store.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { requireSystemPrinter } from './printer-manager.js';
 import { getPaperGeometry } from './paper-geometry.js';
@@ -301,7 +301,9 @@ async function doPrintHtml(htmlContent, printerName = null, timing = null) {
     printerName: selectedPrinter,
     image,
     geometry,
-    cutter: getCutterEnabled(), // Use stored setting
+    // The single place that decides the cut, per printer (KTD2): no transport
+    // adds its own cut command, and no path cuts on its own.
+    cutter: getPrinterCutter(selectedPrinter),
   });
   timing?.mark('envio');
 }

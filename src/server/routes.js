@@ -11,7 +11,7 @@ import {
   getQRCodeSize, setQRCodeSize,
   getLogoEnabled, setLogoEnabled,
   getLogoSize, setLogoSize,
-  getCutterEnabled, setCutterEnabled,
+  getPrinterCutter, setPrinterCutter,
   getRegisterId, setRegisterId,
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
@@ -129,9 +129,9 @@ export function createApi(options) {
   // GET /settings — full settings snapshot. Mirrors the IPC surface used by
   // the Electron settings window so an agent (or a remote troubleshooter) can
   // adjust paper width, QR, template, etc. without the desktop UI. (todo 014)
-  // paperWidth/widthAdjust are per-printer (like printerTransports); an
-  // optional `?printer=` query param targets a specific one, defaulting to
-  // the currently selected printer.
+  // paperWidth/widthAdjust/cutterEnabled are per-printer (like
+  // printerTransports); an optional `?printer=` query param targets a specific
+  // one, defaulting to the currently selected printer.
   app.get('/settings', (c) => {
     const printerName = c.req.query('printer') || getSelectedPrinter();
     return c.json({
@@ -143,15 +143,16 @@ export function createApi(options) {
       qrCodeSize: getQRCodeSize(),
       logoEnabled: getLogoEnabled(),
       logoSize: getLogoSize(),
-      cutterEnabled: getCutterEnabled(),
+      cutterEnabled: getPrinterCutter(printerName),
     });
   });
 
   // PUT /settings — partial update. Only documented keys are honored; unknown
   // keys are ignored. Each setter validates internally; bad values fall back
-  // to current value rather than throwing. `paperWidth`/`widthAdjust` apply to
-  // an optional `printer` field in the body, defaulting to the currently
-  // selected printer (per-printer settings, like printerTransports).
+  // to current value rather than throwing. `paperWidth`/`widthAdjust`/
+  // `cutterEnabled` apply to an optional `printer` field in the body,
+  // defaulting to the currently selected printer (per-printer settings, like
+  // printerTransports).
   app.put('/settings', async (c) => {
     try {
       const body = await c.req.json();
@@ -162,7 +163,6 @@ export function createApi(options) {
         qrCodeSize: setQRCodeSize,
         logoEnabled: setLogoEnabled,
         logoSize: setLogoSize,
-        cutterEnabled: setCutterEnabled,
       };
       for (const [key, setter] of Object.entries(updaters)) {
         if (Object.prototype.hasOwnProperty.call(body, key)) {
@@ -175,6 +175,9 @@ export function createApi(options) {
       if (Object.prototype.hasOwnProperty.call(body, 'widthAdjust')) {
         setWidthAdjust(printerName, body.widthAdjust);
       }
+      if (Object.prototype.hasOwnProperty.call(body, 'cutterEnabled')) {
+        setPrinterCutter(printerName, body.cutterEnabled);
+      }
       return c.json({
         success: true,
         settings: {
@@ -186,7 +189,7 @@ export function createApi(options) {
           qrCodeSize: getQRCodeSize(),
           logoEnabled: getLogoEnabled(),
           logoSize: getLogoSize(),
-          cutterEnabled: getCutterEnabled(),
+          cutterEnabled: getPrinterCutter(printerName),
         },
       });
     } catch (error) {

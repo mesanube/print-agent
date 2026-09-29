@@ -14,7 +14,7 @@ import {
     setLogoPath, getLogoSize, setLogoSize,
     getQRCodeEnabled, setQRCodeEnabled, getQRCodeSize, setQRCodeSize,
     setLogoEnabled, getLogoEnabled, getLogoPath,
-    setCutterEnabled, getCutterEnabled,
+    setPrinterCutter, getPrinterCutter,
     setPaperWidth, getPaperWidth,
     setWidthAdjust, getWidthAdjust,
     setPrinterTransport, getPrinterTransport
@@ -173,7 +173,7 @@ export function setupSettingsIPC() {
         printReceiptNative({
             printerName: selectedPrinter,
             imageInput: tempPath,
-            cutter: getCutterEnabled(), // Use stored setting
+            cutter: getPrinterCutter(selectedPrinter),
         });
 
         return { success: true, message: i18next.t('ipcMessages.testSuccess') };
@@ -205,7 +205,7 @@ export function setupSettingsIPC() {
         printReceiptNative({
             printerName: selectedPrinter,
             imageInput: imagePath,
-            cutter: getCutterEnabled(), // Use stored setting
+            cutter: getPrinterCutter(selectedPrinter),
         });
         
         return { success: true, message: 'Image print job sent successfully.' };
@@ -345,9 +345,10 @@ export function setupSettingsIPC() {
     }
   });
   ipcMain.handle('get-logo-config', () => {
-    // paperWidth/widthAdjust are per-printer (see get-paper-settings below) and
-    // no longer part of this snapshot -- they need to know which printer is
-    // selected in the renderer, which this global config predates.
+    // paperWidth/widthAdjust/cutter are per-printer (see get-paper-settings and
+    // get-cutter-enabled below) and no longer part of this snapshot -- they
+    // need to know which printer is selected in the renderer, which this
+    // global config predates.
     return {
       logoPath: getLogoPath(),
       logoBase64: getLogoAsBase64(),
@@ -355,7 +356,6 @@ export function setupSettingsIPC() {
       logoEnabled: getLogoEnabled(),
       qrCodeEnabled: getQRCodeEnabled(),
       qrCodeSize: getQRCodeSize(),
-      cutterEnabled: getCutterEnabled(), // Return cutter setting
     };
   });
   // Per-printer paper width + width adjust (mirrors get/set-printer-transport
@@ -363,6 +363,10 @@ export function setupSettingsIPC() {
   // these can't be a single global value.
   ipcMain.handle('get-paper-settings', (event, printerName) => {
     return { paperWidth: getPaperWidth(printerName), widthAdjust: getWidthAdjust(printerName) };
+  });
+  // Per-printer automatic cut (KD6), same shape as the paper settings above.
+  ipcMain.handle('get-cutter-enabled', (event, printerName) => {
+    return { cutterEnabled: getPrinterCutter(printerName) };
   });
   ipcMain.handle('select-logo-file', async () => {
     try {
@@ -407,9 +411,13 @@ export function setupSettingsIPC() {
     }
     return { success: false, message: 'Invalid QR code size. Must be between 20 and 100.' };
   });
-  // NEW: Handle saving the cutter setting
-  ipcMain.handle('set-cutter-enabled', (event, enabled) => {
-    setCutterEnabled(enabled);
+  // Per-printer automatic cut (KD6): the driver-level double cut is a
+  // property of the printer, so the toggle carries the printer name.
+  ipcMain.handle('set-cutter-enabled', (event, { printerName, enabled }) => {
+    if (!printerName) {
+      return { success: false, message: 'No printer selected.' };
+    }
+    setPrinterCutter(printerName, enabled);
     return { success: true };
   });
   ipcMain.handle('set-paper-width', (event, printerName, width) => {
@@ -487,8 +495,9 @@ export function cleanupSettingsIPC() {
   ipcMain.removeHandler('print-data-url');
   ipcMain.removeHandler('browse-and-print-image');
   ipcMain.removeHandler('save-data-url-as-image');
-  // NEW: Clean up new handlers
+  // Per-printer settings (cutter lives with paper width).
   ipcMain.removeHandler('set-cutter-enabled');
+  ipcMain.removeHandler('get-cutter-enabled');
   ipcMain.removeHandler('get-paper-settings');
   ipcMain.removeHandler('set-paper-width');
   ipcMain.removeHandler('set-width-adjust');

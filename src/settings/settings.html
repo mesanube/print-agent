@@ -64,6 +64,9 @@
         .toggle-switch input[type="checkbox"]:checked { background: #007AFF; }
         .toggle-switch input[type="checkbox"]::before { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: transform 0.3s; }
         .toggle-switch input[type="checkbox"]:checked::before { transform: translateX(20px); }
+        .toggle-switch input[type="checkbox"]:disabled { opacity: 0.4; cursor: not-allowed; }
+        /* Short helper under a section's control (mirrors the width-adjust hint). */
+        .section-hint { font-size: 12px; color: #666; margin: 6px 0 0; }
         .logo-size-controls, .qrcode-size-controls { margin-top: 8px; }
         .logo-size-slider, .qrcode-size-slider { width: 100%; margin: 10px 0; }
         .logo-size-labels, .qrcode-size-labels { display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-top: 4px; }
@@ -152,6 +155,17 @@
                 </div>
             </div>
 
+            <!-- Automatic cut is per printer (KD6): the same machine can have a
+                 printer whose driver cuts twice and one that does not. -->
+            <div class="section" id="cutter-section">
+                <label><i class="material-icons">content_cut</i><span data-i18n="settingsWindow.cutter">Corte automático</span></label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="cutter-toggle" checked disabled>
+                    <label for="cutter-toggle" data-i18n="settingsWindow.enableCutter">Activar corte automático</label>
+                </div>
+                <p class="section-hint" data-i18n="settingsWindow.cutterHint"></p>
+            </div>
+
             <div class="section">
                 <div class="collapsible" id="width-adjust-collapsible">
                     <div class="collapsible-header" id="width-adjust-header" role="button" tabindex="0" aria-expanded="false" aria-controls="width-adjust-content">
@@ -229,14 +243,6 @@
                 </div>
             </div>
             -->
-<!-- 
-            <div class="section" id="cutter-section">
-                <label><i class="material-icons">content_cut</i><span data-i18n="settingsWindow.cutter">Guillotina</span></label>
-                <div class="toggle-switch">
-                    <input type="checkbox" id="cutter-toggle" checked>
-                    <label for="cutter-toggle" data-i18n="settingsWindow.enableCutter">Enable Automatic Cut</label>
-                </div>
-            </div> -->
 
             <!-- LANGUAGE PICKER - DISABLED
             <div class="section">
@@ -279,11 +285,13 @@
         let currentPrinters = [];
         let selectedPrinterName = null;
         let selectedTemplateName = 'modern-receipt.html'; // FIXED: Using modern-receipt.html as default
-        let logoConfig = { logoPath: null, logoBase64: null, logoSize: 50, logoEnabled: true, qrCodeEnabled: true, qrCodeSize: 60, cutterEnabled: true };
-        // Paper width + width adjust are per-printer (see refreshPaperSettings), so
-        // they live outside logoConfig and are re-fetched whenever the selected
-        // printer changes rather than loaded once at startup.
+        let logoConfig = { logoPath: null, logoBase64: null, logoSize: 50, logoEnabled: true, qrCodeEnabled: true, qrCodeSize: 60 };
+        // Paper width + width adjust + automatic cut are per-printer (see
+        // refreshPaperSettings/refreshCutter), so they live outside logoConfig
+        // and are re-fetched whenever the selected printer changes rather than
+        // loaded once at startup.
         let paperSettings = { paperWidth: '80mm', widthAdjust: 100 };
+        let cutterEnabled = true;
         const loadingOverlay = document.getElementById('loading-overlay');
         const statusMessage = document.getElementById('status-message');
         const cancelBtn = document.getElementById('cancel-btn');
@@ -402,6 +410,20 @@
             widthAdjustInput.value = paperSettings.widthAdjust || 100;
         }
 
+        // Automatic cut is per-printer too (KD6), same refresh cycle as the
+        // paper settings above: disabled until a printer is chosen.
+        async function refreshCutter() {
+            if (!cutterToggle) return;
+            if (!selectedPrinterName) {
+                cutterToggle.disabled = true;
+                return;
+            }
+            cutterToggle.disabled = false;
+            const result = await window.electronAPI.getCutterEnabled(selectedPrinterName);
+            cutterEnabled = result.cutterEnabled !== false;
+            cutterToggle.checked = cutterEnabled;
+        }
+
         // --- Logo Management Functions ---
         function updateLogoPreview() {
             if (logoConfig.logoBase64) {
@@ -420,7 +442,6 @@
 
             logoToggle.checked = logoConfig.logoEnabled;
             // qrcodeToggle.checked = logoConfig.qrCodeEnabled; // DISABLED
-            cutterToggle.checked = logoConfig.cutterEnabled;
             // qrcodeSizeSlider.value = logoConfig.qrCodeSize; // DISABLED
             // qrcodeSizeValue.textContent = `${logoConfig.qrCodeSize}%`; // DISABLED
             if (selectedTemplateName) {
@@ -481,6 +502,7 @@
             // testImageBtn.disabled = buttonsDisabled; // DISABLED
             refreshPrinterTransport();
             refreshPaperSettings();
+            refreshCutter();
         }
         
         // --- Template Logic ---
@@ -675,6 +697,7 @@
                 // testImageBtn.disabled = false; // DISABLED
                 refreshPrinterTransport();
                 refreshPaperSettings();
+                refreshCutter();
             });
             initCustomSelect('printer-transport-wrapper', async (option) => {
                 if (!selectedPrinterName) return;
@@ -739,13 +762,22 @@
                 }
             });
 
-            // cutterToggle.addEventListener('change', async () => {
-            //     const enabled = cutterToggle.checked;
-            //     const result = await window.electronAPI.setCutterEnabled(enabled);
-            //     if (result.success) {
-            //         logoConfig.cutterEnabled = enabled;
-            //     }
-            // });
+            // Automatic cut toggle (per printer, KD6)
+            cutterToggle.addEventListener('change', async () => {
+                if (!selectedPrinterName) {
+                    cutterToggle.checked = cutterEnabled;
+                    return;
+                }
+                const enabled = cutterToggle.checked;
+                const result = await window.electronAPI.setCutterEnabled(selectedPrinterName, enabled);
+                if (result.success) {
+                    cutterEnabled = enabled;
+                    showStatus(enabled ? i18next.t('settingsWindow.cutterEnabledStatus') : i18next.t('settingsWindow.cutterDisabledStatus'), 'success');
+                } else {
+                    cutterToggle.checked = cutterEnabled;
+                    showStatus(result.message || 'Failed to update the automatic cut', 'error');
+                }
+            });
             // selectLogoBtn.addEventListener('click', async () => {
             //     const result = await window.electronAPI.selectLogoFile();
             //     if (result.success) {

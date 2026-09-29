@@ -47,8 +47,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setLogoEnabled: (enabled) => ipcRenderer.invoke('set-logo-enabled', enabled),
   setQRCodeSize: (size) => ipcRenderer.invoke('set-qrcode-size', size),
 
-  // Cutter API
-  setCutterEnabled: (enabled) => ipcRenderer.invoke('set-cutter-enabled', enabled),
+  // Cutter API (per-printer, mirrors Paper Width API below)
+  getCutterEnabled: (printerName) => ipcRenderer.invoke('get-cutter-enabled', printerName),
+  setCutterEnabled: (printerName, enabled) => ipcRenderer.invoke('set-cutter-enabled', { printerName, enabled }),
 
   // Paper Width API (per-printer, mirrors Printer Transport API below)
   getPaperSettings: (printerName) => ipcRenderer.invoke('get-paper-settings', printerName),

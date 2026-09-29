@@ -98,15 +98,25 @@ export function getLogoEnabled() {
   return store.get('logoEnabled', true); // Default to enabled
 }
 
-// --- Cutter Management ---
+// --- Automatic cutter (per printer) ---
+// Some drivers cut at the end of the job on top of the agent's own cut
+// command, and the ticket comes out cut twice. Whether that happens is a
+// property of the printer's driver, so the toggle travels with the printer
+// (KD6), same map shape as printerTransports below. A missing entry is `true`:
+// the old global key was hidden in the UI, so it is `true` on every install,
+// which is exactly the new default (KTD1, no migration).
 
-export function setCutterEnabled(enabled) {
-  store.set('cutterEnabled', enabled);
-  console.log('[Settings] Cutter enabled:', enabled);
+export function setPrinterCutter(printerName, enabled) {
+  const cutters = store.get('printerCutters', {});
+  cutters[printerName] = !!enabled;
+  store.set('printerCutters', cutters);
+  console.log('[Settings] Printer cutter saved:', printerName, '->', !!enabled);
 }
 
-export function getCutterEnabled() {
-  return store.get('cutterEnabled', true); // Default to enabled
+export function getPrinterCutter(printerName) {
+  const cutters = store.get('printerCutters', {});
+  if (printerName && cutters[printerName] != null) return cutters[printerName];
+  return true;
 }
 
 // --- Paper Width Management ---
