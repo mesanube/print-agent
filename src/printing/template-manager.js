@@ -9,23 +9,10 @@ import {
   generateAfipQRCodePngHTML,
 } from './qrcode-generator.js';
 import { getLogoAsBase64 } from '../shared/file-helpers.js';
+import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS } from './receipt-format.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-/**
- * Formats a number with . for thousands separator and , for decimals
- * Example: 1234.56 -> "1.234,56"
- * @param {number} num - The number to format
- * @param {number} decimals - Number of decimal places (default: 2)
- * @returns {string} Formatted number string
- */
-function formatPrice(num, decimals = 2) {
-  const fixed = num.toFixed(decimals);
-  const [integer, decimal] = fixed.split('.');
-  const formattedInteger = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return decimal ? `${formattedInteger},${decimal}` : formattedInteger;
-}
 
 /**
  * HTML-escape a user-controlled string before interpolation. Prevents stored-XSS
@@ -49,16 +36,6 @@ function moneyRow(label, amount, { sub = false, emph = false, negative = false }
   const amountHtml = emph ? `<span class="amount emph">${amountStr}</span>` : `<span class="amount">${amountStr}</span>`;
   return `<div class="${cls}">${labelHtml}${amountHtml}</div>`;
 }
-
-// Canonical Spanish labels for the legacy payment-method enum, used when an order
-// predates the configurable PaymentMethod ref (MES-119) so byMethod falls back to
-// the raw enum string instead of a display name.
-const PM_LEGACY_LABELS = {
-  cash: 'Efectivo',
-  debit: 'Tarjeta debito',
-  credit: 'Tarjeta credito',
-  transfer: 'Transferencia / QR',
-};
 
 // Net sales per payment method (MES-119): one line per PaymentMethod actually used
 // in the window, by the local's own display name, so the per-method lines reconcile
@@ -112,8 +89,6 @@ function movementLines(items) {
     return moneyRow(it.label || '', it.amount) + meta;
   }).join('');
 }
-
-const DOC_TYPE_LABELS = { remito: 'Remito', invoice: 'Factura', receipt: 'Recibo', other: 'Otro' };
 
 // Detail lines for an expense overlay section (MES-155). Label = description (or
 // supplier/category fallback); meta = supplier + receipt (tipo/letra/numero).
