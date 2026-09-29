@@ -204,10 +204,10 @@ async function captureHtmlOnDemand(htmlContent, printerName = null) {
 // inherit a rejected promise.
 let printQueue = Promise.resolve();
 
-async function printHtml(htmlContent, printerName = null) {
+async function printHtml(htmlContent, printerName = null, timing = null) {
   const myTurn = printQueue.then(
-    () => doPrintHtml(htmlContent, printerName),
-    () => doPrintHtml(htmlContent, printerName),
+    () => doPrintHtml(htmlContent, printerName, timing),
+    () => doPrintHtml(htmlContent, printerName, timing),
   );
   printQueue = myTurn.catch(() => {});
   return myTurn;
@@ -237,7 +237,7 @@ async function dumpPngForReview(imageBuffer, printerName) {
   return file;
 }
 
-async function doPrintHtml(htmlContent, printerName = null) {
+async function doPrintHtml(htmlContent, printerName = null, timing = null) {
   if (DRY_RUN) {
     console.log(`[Print DEBUG] PRINT_AGENT_DRY_RUN=1 — capturing PNG for printer "${printerName || '(none)'}" instead of printing.`);
     const image = await captureHtmlOnDemand(htmlContent, printerName);
@@ -267,8 +267,10 @@ async function doPrintHtml(htmlContent, printerName = null) {
 
   console.log(`[Windows Print] Printing to ${selectedPrinter} (${printerName ? 'specified' : 'default'}) via ${transportMode}`);
 
+  timing?.setMode('image');
   const image = await captureHtmlOnDemand(htmlContent, selectedPrinter);
   const geometry = getPaperGeometry(selectedPrinter);
+  timing?.mark('armado');
 
   await printBitmap({
     printerName: selectedPrinter,
@@ -276,23 +278,24 @@ async function doPrintHtml(htmlContent, printerName = null) {
     geometry,
     cutter: getCutterEnabled(), // Use stored setting
   });
+  timing?.mark('envio');
 }
 
-export async function printReceipt(data, printerName = null) {
+export async function printReceipt(data, printerName = null, timing = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
   const effectivePrinter = printerName || getSelectedPrinter();
   const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-receipt.html', "receipt", undefined, effectivePrinter);
-  await printHtml(html, effectivePrinter);
+  await printHtml(html, effectivePrinter, timing);
 }
 
-export async function printOrder(data, printerName = null) {
+export async function printOrder(data, printerName = null, timing = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
   const effectivePrinter = printerName || getSelectedPrinter();
   // Use modern-order.html template for kitchen orders
   const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-order.html', "order", undefined, effectivePrinter);
-  return printHtml(html, effectivePrinter);
+  return printHtml(html, effectivePrinter, timing);
 }
 
 /**
@@ -300,7 +303,7 @@ export async function printOrder(data, printerName = null) {
  * matching the unix chit format and routes through the standard printHtml
  * pipeline. No template file in v1 — keeps the surface small.
  */
-export async function printOrderUpdate(data, printerName = null) {
+export async function printOrderUpdate(data, printerName = null, timing = null) {
   const order = data.order || {};
   const lines = Array.isArray(data.lines) ? data.lines : [];
   const now = new Date();
@@ -460,29 +463,29 @@ export async function printOrderUpdate(data, printerName = null) {
 </body>
 </html>`;
 
-  return printHtml(html, printerName);
+  return printHtml(html, printerName, timing);
 }
 
-export async function printInvoice(data, printerName = null) {
+export async function printInvoice(data, printerName = null, timing = null) {
 
   const { restaurant, order, invoiceData } = data
   const effectivePrinter = printerName || getSelectedPrinter();
 
   const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', "invoice", invoiceData, effectivePrinter);
 
-  await printHtml(html, effectivePrinter);
+  await printHtml(html, effectivePrinter, timing);
 }
 
-export async function printCashClose(data, printerName = null) {
+export async function printCashClose(data, printerName = null, timing = null) {
   const { restaurant, summary } = data;
   const html = await renderCashCloseHtml(summary, restaurant);
-  await printHtml(html, printerName);
+  await printHtml(html, printerName, timing);
 }
 
-export async function printDayZ(data, printerName = null) {
+export async function printDayZ(data, printerName = null, timing = null) {
   const { restaurant, summary } = data;
   const html = await renderDayZHtml(summary, restaurant);
-  await printHtml(html, printerName);
+  await printHtml(html, printerName, timing);
 }
 
 export async function printCalibrationPage(printerName = null) {

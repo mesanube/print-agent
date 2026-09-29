@@ -15,6 +15,7 @@ import {
   getRegisterId, setRegisterId,
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
+import { startJobTiming } from '../printing/job-timing.js';
 import { printTestPage, printReceipt, printOrder, printOrderUpdate, printInvoice, printCashClose, printDayZ, printCalibrationPage } from '../printing/index.js';
 
 // In-memory idempotency cache for print jobs, keyed by a generic `jobId`.
@@ -49,6 +50,19 @@ const recordJob = (jobId) => {
     }
   }
 };
+
+// Runs one print job with its stage timings (R3). The timing line is logged
+// on success and on failure alike, so a failed job still shows how far it got.
+async function runTimedJob(job, print) {
+  const timing = startJobTiming(job);
+  try {
+    await print(timing);
+    timing.finish();
+  } catch (error) {
+    timing.finish({ error });
+    throw error;
+  }
+}
 
 export function createApi(options) {
   const { isDevelopmentMode, getCurrentPort, appVersion } = options;
@@ -278,7 +292,7 @@ export function createApi(options) {
       // Reserve before awaiting; release on failure so a real retry can proceed.
       if (jobId) recordJob(jobId);
       try {
-        await printReceipt(requestData, printerName);
+        await runTimedJob('receipt', (timing) => printReceipt(requestData, printerName, timing));
       } catch (error) {
         if (jobId) printedJobs.delete(jobId);
         throw error;
@@ -294,7 +308,7 @@ export function createApi(options) {
       const requestData = await c.req.json();
       const { printerName } = requestData;
       // Do not log requestData: the cash-close payload is financially sensitive.
-      await printCashClose(requestData, printerName);
+      await runTimedJob('cash-close', (timing) => printCashClose(requestData, printerName, timing));
       return c.json({ success: true, message: 'Cash-close printed successfully' });
     } catch (error) {
       // Generic message; never echo summary values back to the caller.
@@ -307,7 +321,7 @@ export function createApi(options) {
       const requestData = await c.req.json();
       const { printerName } = requestData;
       // Do not log requestData: the day-Z payload is financially sensitive.
-      await printDayZ(requestData, printerName);
+      await runTimedJob('day-z', (timing) => printDayZ(requestData, printerName, timing));
       return c.json({ success: true, message: 'Day-Z printed successfully' });
     } catch (error) {
       return c.json({ error: 'Day-Z print failed' }, 500);
@@ -335,7 +349,7 @@ export function createApi(options) {
       // Release on failure so a legitimate retry can proceed.
       if (kitchenTicketId) recordJob(kitchenTicketId);
       try {
-        await printOrder(requestData, printerName);
+        await runTimedJob('order', (timing) => printOrder(requestData, printerName, timing));
       } catch (error) {
         if (kitchenTicketId) printedJobs.delete(kitchenTicketId);
         throw error;
@@ -365,7 +379,7 @@ export function createApi(options) {
       // Reserve before awaiting (see /print/order above for rationale).
       if (kitchenTicketId) recordJob(kitchenTicketId);
       try {
-        await printOrderUpdate(requestData, printerName);
+        await runTimedJob('order-update', (timing) => printOrderUpdate(requestData, printerName, timing));
       } catch (error) {
         if (kitchenTicketId) printedJobs.delete(kitchenTicketId);
         throw error;
@@ -393,7 +407,7 @@ export function createApi(options) {
 
       if (jobId) recordJob(jobId);
       try {
-        await printInvoice(requestData, printerName);
+        await runTimedJob('invoice', (timing) => printInvoice(requestData, printerName, timing));
       } catch (error) {
         if (jobId) printedJobs.delete(jobId);
         throw error;

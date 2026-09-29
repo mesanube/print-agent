@@ -17,11 +17,12 @@ const useWindowsPath = isWindows || process.env.USE_WINDOWS_PATH === '1';
  * Automatically selects the correct printing method based on the OS.
  * @param {object} data - The receipt data.
  * @param {string|null} printerName - Optional printer name to override default.
+ * @param {object|null} timing - Optional job timing from job-timing.js (R3).
  */
-export async function printReceipt(data, printerName = null) {
+export async function printReceipt(data, printerName = null, timing = null) {
   try {
     // if (isWindows) {
-    await printReceiptWindows(data, printerName);
+    await printReceiptWindows(data, printerName, timing);
     // } else {
     //   await printReceiptUnix(data, printerName);
     // }
@@ -39,11 +40,11 @@ export async function printReceipt(data, printerName = null) {
  * @param {object} data - The order data with dailyOrderNumber.
  * @param {string|null} printerName - Optional printer name to override default.
  */
-export async function printOrder(data, printerName = null) {
+export async function printOrder(data, printerName = null, timing = null) {
   try {
     let dryRun = null;
     if (useWindowsPath) {
-      dryRun = await printOrderWindows(data, printerName);
+      dryRun = await printOrderWindows(data, printerName, timing);
     } else {
       await printOrderUnix(data, printerName);
     }
@@ -64,11 +65,11 @@ export async function printOrder(data, printerName = null) {
  * @param {object} data - { kitchenTicketId, order, lines, restaurant }
  * @param {string|null} printerName
  */
-export async function printOrderUpdate(data, printerName = null) {
+export async function printOrderUpdate(data, printerName = null, timing = null) {
   try {
-    let dryRun = null;
+let dryRun = null;
     if (useWindowsPath) {
-      dryRun = await printOrderUpdateWindows(data, printerName);
+      dryRun = await printOrderUpdateWindows(data, printerName, timing);
     } else {
       await printOrderUpdateUnix(data, printerName);
     }
@@ -83,13 +84,13 @@ export async function printOrderUpdate(data, printerName = null) {
   }
 }
 
-export async function printInvoice(data, printerName = null) {
+export async function printInvoice(data, printerName = null, timing = null) {
 
-  await printInvoiceWindows(data, printerName);
+  await printInvoiceWindows(data, printerName, timing);
 
   // try {
   //   if (isWindows) {
-  //     await printInvoiceWindows(data, printerName);
+  //     await printInvoiceWindows(data, printerName, timing);
   //   } else {
   //     await printInvoiceUnix(data, printerName);
   //   }
@@ -109,13 +110,13 @@ export async function printInvoice(data, printerName = null) {
  * @param {object} data - { restaurant, summary }
  * @param {string|null} printerName - Optional printer name to override default.
  */
-export async function printCashClose(data, printerName = null) {
+export async function printCashClose(data, printerName = null, timing = null) {
   if (!isWindows) {
     console.log('[Print] cash-close printing is only supported on Windows; skipping on this platform');
     return;
   }
   try {
-    await printCashCloseWindows(data, printerName);
+    await printCashCloseWindows(data, printerName, timing);
     console.log(`[Print] ✓ Cash-close printed successfully to ${printerName || 'default printer'}`);
   } catch (error) {
     console.error('[Print] ✗ Cash-close printing failed:', error);
@@ -129,13 +130,13 @@ export async function printCashClose(data, printerName = null) {
  * @param {object} data - { restaurant, summary }
  * @param {string|null} printerName - Optional printer name to override default.
  */
-export async function printDayZ(data, printerName = null) {
+export async function printDayZ(data, printerName = null, timing = null) {
   if (!isWindows) {
     console.log('[Print] day-Z printing is only supported on Windows; skipping on this platform');
     return;
   }
   try {
-    await printDayZWindows(data, printerName);
+    await printDayZWindows(data, printerName, timing);
     console.log(`[Print] ✓ Day-Z printed successfully to ${printerName || 'default printer'}`);
   } catch (error) {
     console.error('[Print] ✗ Day-Z printing failed:', error);
