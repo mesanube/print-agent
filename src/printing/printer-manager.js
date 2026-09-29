@@ -6,8 +6,74 @@ import { getSelectedPrinter, setSelectedPrinter } from '../core/store.js';
 
 const execAsync = promisify(exec);
 
-// Function to get system printers dynamically
-export async function getSystemPrinters() {
+// Enumerating printers costs a native call plus a hidden BrowserWindow for
+// the default-printer lookup, so it must not run on every print job (R2,
+// KTD4). The list is cached with a short TTL and invalidated explicitly when
+// the settings window opens or refreshes; a job whose printer is missing from
+// the cached list retries once against a fresh list before failing.
+const PRINTER_CACHE_TTL_MS = 30 * 1000;
+
+/**
+ * @param {() => Promise<Array<{name:string}>>} load Real enumeration.
+ * @param {{ttlMs?: number, now?: () => number}} [options]
+ */
+export function createPrinterCache(load, { ttlMs = PRINTER_CACHE_TTL_MS, now = Date.now } = {}) {
+  let cached = null;
+  let loadedAt = 0;
+
+  async function list() {
+    if (cached && now() - loadedAt <= ttlMs) return cached;
+    const printers = await load();
+    // An empty list is what a failed enumeration returns; do not pin it.
+    if (printers.length > 0) {
+      cached = printers;
+      loadedAt = now();
+    } else {
+      cached = null;
+    }
+    return printers;
+  }
+
+  function invalidate() {
+    cached = null;
+  }
+
+  async function requirePrinter(printerName) {
+    let printers = await list();
+    let printer = printers.find((p) => p.name === printerName);
+    if (!printer) {
+      invalidate();
+      printers = await list();
+      printer = printers.find((p) => p.name === printerName);
+    }
+    if (!printer) {
+      const availablePrinters = printers.map((p) => p.name).join(', ');
+      throw new Error(`Printer "${printerName}" not found. Available printers: ${availablePrinters}`);
+    }
+    return printer;
+  }
+
+  return { list, invalidate, requirePrinter };
+}
+
+const printerCache = createPrinterCache(() => loadSystemPrinters());
+
+/** Cached system printer list (see createPrinterCache). */
+export function getSystemPrinters() {
+  return printerCache.list();
+}
+
+/** Forces the next getSystemPrinters() to enumerate again. */
+export function invalidatePrinterCache() {
+  printerCache.invalidate();
+}
+
+/** Resolves the printer or throws "Printer ... not found" after one fresh retry. */
+export function requireSystemPrinter(printerName) {
+  return printerCache.requirePrinter(printerName);
+}
+
+async function loadSystemPrinters() {
   console.log('[PrinterDetection] Platform:', process.platform);
   try {
     // Windows: Use native module, enriched with Electron API for default printer info.

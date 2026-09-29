@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { BrowserWindow } from 'electron';
 import { getSelectedPrinter, getCutterEnabled, getPrinterTransport } from '../core/store.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
-import { getSystemPrinters } from './printer-manager.js';
+import { requireSystemPrinter } from './printer-manager.js';
 import { getPaperGeometry } from './paper-geometry.js';
 import { renderCalibrationHtml } from './calibration-page.js';
 import { printBitmap as printBitmapGdi } from './transports/gdi-transport.js';
@@ -284,14 +284,8 @@ async function doPrintHtml(htmlContent, printerName = null, timing = null) {
     throw new Error('No printer selected or specified.');
   }
 
-  // Validate printer exists on system
-  const systemPrinters = await getSystemPrinters();
-  const printerExists = systemPrinters.find(p => p.name === selectedPrinter);
-
-  if (!printerExists) {
-    const availablePrinters = systemPrinters.map(p => p.name).join(', ');
-    throw new Error(`Printer "${selectedPrinter}" not found. Available printers: ${availablePrinters}`);
-  }
+  // Validate printer exists on system (cached list, one fresh retry)
+  await requireSystemPrinter(selectedPrinter);
 
   const transportMode = getPrinterTransport(selectedPrinter);
   const printBitmap = TRANSPORTS[transportMode] || printBitmapGdi;

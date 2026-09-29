@@ -4,7 +4,7 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import os from 'os';
 import { fileURLToPath } from 'url';
-import { getSystemPrinters } from '../printing/printer-manager.js';
+import { getSystemPrinters, invalidatePrinterCache } from '../printing/printer-manager.js';
 import { printTestPage, printCalibrationPage } from '../printing/index.js';
 import { printReceiptNative } from '../printing/native/windows-native-printer.js';
 import i18next from '../core/i18n.js';
@@ -108,6 +108,9 @@ async function loadPrinters() {
     if (!settingsWindow || settingsWindow.isDestroyed()) return;
     settingsWindow.webContents.send('printers-loading', true);
 
+    // Someone may be opening this window precisely because a printer was just
+    // added or renamed; the cached list would hide it (KTD4).
+    invalidatePrinterCache();
     const printers = await getSystemPrinters();
     const currentPrinter = getSelectedPrinter();
     settingsWindow.webContents.send('printers-loaded', {
