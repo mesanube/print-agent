@@ -52,7 +52,7 @@
     "savePrinter": "Save Printer",
     "selectLogoSize": "Select Logo Size",
     "logoSizeSmall": "Small",
-    "logoSizeMedium": "Medium", 
+    "logoSizeMedium": "Medium",
     "logoSizeLarge": "Large",
     "logoConfiguration": "Logo Configuration",
     "selectLogo": "Select Logo",
@@ -74,12 +74,17 @@
     "widthAdjust": "Width adjust",
     "widthAdjustHint": "If the ticket is cut off on the right, print the calibration page and enter the number where it cuts.",
     "printCalibrationPage": "Print calibration page",
-    "printerTransport": "Print mode",
+    "printerTransport": "Transport (Compatibility mode)",
     "printerTransportHint": "Test with the test page before leaving a printer on ESC/POS (RAW).",
     "transportGdi": "System driver",
     "transportRaw": "ESC/POS (RAW)",
     "capturing": "Capturing template...",
-    "exporting": "Exporting image..."
+    "exporting": "Exporting image...",
+    "printMode": "Print mode",
+    "printModeText": "Text (fast)",
+    "printModeCompat": "Compatibility (image)",
+    "printModeHint": "Text uses the printer's own fonts and is the fastest. If the ticket prints wrong, print the text test page and, if it is not readable, switch to Compatibility.",
+    "printTextTestPage": "Print text test page"
   },
   "ipcMessages": {
     "printersError": "Error loading available printers",
@@ -92,6 +97,8 @@
     "calibrationSuccess": "Calibration page sent successfully",
     "calibrationError": "Calibration page print failed: {{message}}",
     "exportSuccess": "Image saved successfully.",
-    "exportError": "Failed to save image."
+    "exportError": "Failed to save image.",
+    "textTestSuccess": "Text test page sent successfully",
+    "textTestError": "Text test page print failed: {{message}}"
   }
 }

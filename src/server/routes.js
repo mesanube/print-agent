@@ -12,6 +12,7 @@ import {
   getLogoEnabled, setLogoEnabled,
   getLogoSize, setLogoSize,
   getPrinterCutter, setPrinterCutter,
+  getPrintMode, setPrintMode, PRINT_MODES,
   getRegisterId, setRegisterId,
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
@@ -129,7 +130,7 @@ export function createApi(options) {
   // GET /settings — full settings snapshot. Mirrors the IPC surface used by
   // the Electron settings window so an agent (or a remote troubleshooter) can
   // adjust paper width, QR, template, etc. without the desktop UI. (todo 014)
-  // paperWidth/widthAdjust/cutterEnabled are per-printer (like
+  // paperWidth/widthAdjust/cutterEnabled/printMode are per-printer (like
   // printerTransports); an optional `?printer=` query param targets a specific
   // one, defaulting to the currently selected printer.
   app.get('/settings', (c) => {
@@ -144,6 +145,7 @@ export function createApi(options) {
       logoEnabled: getLogoEnabled(),
       logoSize: getLogoSize(),
       cutterEnabled: getPrinterCutter(printerName),
+      printMode: getPrintMode(printerName),
     });
   });
 
@@ -178,6 +180,9 @@ export function createApi(options) {
       if (Object.prototype.hasOwnProperty.call(body, 'cutterEnabled')) {
         setPrinterCutter(printerName, body.cutterEnabled);
       }
+      if (PRINT_MODES.includes(body.printMode)) {
+        setPrintMode(printerName, body.printMode);
+      }
       return c.json({
         success: true,
         settings: {
@@ -190,6 +195,7 @@ export function createApi(options) {
           logoEnabled: getLogoEnabled(),
           logoSize: getLogoSize(),
           cutterEnabled: getPrinterCutter(printerName),
+          printMode: getPrintMode(printerName),
         },
       });
     } catch (error) {

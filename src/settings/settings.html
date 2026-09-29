@@ -133,7 +133,23 @@
                 </div>
             </div>
 
-            <div class="section">
+            <!-- Print mode is per printer (KD2): text is fast and the default;
+                 compatibility keeps the image path for printers that do not
+                 understand ESC/POS text. -->
+            <div class="section" id="print-mode-section">
+                <label><i class="material-icons">bolt</i><span data-i18n="settingsWindow.printMode"></span></label>
+                <div id="print-mode-wrapper" class="custom-select-wrapper disabled">
+                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.printModeText"></span><i class="material-icons">arrow_drop_down</i></div>
+                    <div class="custom-options">
+                        <div class="custom-option selected" data-value="text"><span data-i18n="settingsWindow.printModeText"></span></div>
+                        <div class="custom-option" data-value="compat"><span data-i18n="settingsWindow.printModeCompat"></span></div>
+                    </div>
+                </div>
+                <p class="section-hint" data-i18n="settingsWindow.printModeHint"></p>
+                <button type="button" id="print-text-test-btn" class="btn-secondary" disabled><i class="material-icons">print</i><span data-i18n="settingsWindow.printTextTestPage"></span></button>
+            </div>
+
+            <div class="section" id="printer-transport-section" style="display: none;">
                 <label><i class="material-icons">cable</i><span data-i18n="settingsWindow.printerTransport"></span></label>
                 <div id="printer-transport-wrapper" class="custom-select-wrapper disabled">
                     <div class="custom-select-trigger"><span data-i18n="settingsWindow.transportGdi"></span><i class="material-icons">arrow_drop_down</i></div>
@@ -320,6 +336,9 @@
         const savePrinterBtn = document.getElementById('save-printer-btn');
         const printerSelectWrapper = document.getElementById('printer-select-wrapper');
         const printerTransportWrapper = document.getElementById('printer-transport-wrapper');
+        const printerTransportSection = document.getElementById('printer-transport-section');
+        const printModeWrapper = document.getElementById('print-mode-wrapper');
+        const printTextTestBtn = document.getElementById('print-text-test-btn');
 
         // Template elements - DISABLED
         // const saveTemplateBtn = document.getElementById('save-template-btn');
@@ -408,6 +427,32 @@
             paperSettings = await window.electronAPI.getPaperSettings(selectedPrinterName);
             setPaperWidthDropdown(paperSettings.paperWidth || '80mm');
             widthAdjustInput.value = paperSettings.widthAdjust || 100;
+        }
+
+        function setPrintModeDropdown(mode) {
+            if (!printModeWrapper) return;
+            const selected = printModeWrapper.querySelector(`.custom-option[data-value="${mode}"]`);
+            const trigger = printModeWrapper.querySelector('.custom-select-trigger span');
+            if (trigger && selected) trigger.textContent = selected.textContent;
+            printModeWrapper.querySelectorAll('.custom-option').forEach((opt) => {
+                opt.classList.toggle('selected', opt.dataset.value === mode);
+            });
+            // The gdi/raw transport only applies to the image path (compat).
+            if (printerTransportSection) printerTransportSection.style.display = mode === 'compat' ? '' : 'none';
+        }
+
+        // Print mode is per-printer (KD2), same refresh cycle as the transport.
+        async function refreshPrintMode() {
+            if (!printModeWrapper) return;
+            if (!selectedPrinterName) {
+                printModeWrapper.classList.add('disabled');
+                printTextTestBtn.disabled = true;
+                return;
+            }
+            printModeWrapper.classList.remove('disabled');
+            printTextTestBtn.disabled = false;
+            const result = await window.electronAPI.getPrintMode(selectedPrinterName);
+            setPrintModeDropdown(result.mode || 'text');
         }
 
         // Automatic cut is per-printer too (KD6), same refresh cycle as the
@@ -503,6 +548,7 @@
             refreshPrinterTransport();
             refreshPaperSettings();
             refreshCutter();
+            refreshPrintMode();
         }
         
         // --- Template Logic ---
@@ -698,6 +744,7 @@
                 refreshPrinterTransport();
                 refreshPaperSettings();
                 refreshCutter();
+                refreshPrintMode();
             });
             initCustomSelect('printer-transport-wrapper', async (option) => {
                 if (!selectedPrinterName) return;
@@ -759,6 +806,31 @@
                 } else {
                     setPaperWidthDropdown(previous);
                     showStatus(result.message || 'Failed to update paper width', 'error');
+                }
+            });
+
+            initCustomSelect('print-mode-wrapper', async (option) => {
+                if (!selectedPrinterName) return;
+                const mode = option.dataset.value;
+                const previous = mode === 'text' ? 'compat' : 'text';
+                const result = await window.electronAPI.setPrintMode(selectedPrinterName, mode);
+                if (result.success) {
+                    setPrintModeDropdown(mode);
+                    showStatus(`${i18next.t('settingsWindow.printMode')}: ${option.textContent}`, 'success');
+                } else {
+                    setPrintModeDropdown(previous);
+                    showStatus(result.message || 'Failed to update print mode', 'error');
+                }
+            });
+
+            printTextTestBtn.addEventListener('click', async () => {
+                if (!selectedPrinterName) return;
+                printTextTestBtn.disabled = true;
+                try {
+                    const result = await window.electronAPI.printTextTestPage(selectedPrinterName);
+                    showStatus(result.message, result.success ? 'success' : 'error');
+                } finally {
+                    printTextTestBtn.disabled = false;
                 }
             });
 

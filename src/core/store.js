@@ -180,6 +180,29 @@ export function getPrinterTransport(printerName) {
   return transports[printerName] || 'gdi';
 }
 
+// --- Print Mode Management ---
+// Per-printer: 'text' prints with the printer's own fonts as ESC/POS text
+// (fast, KD1); 'compat' keeps the HTML-to-image path with its transport
+// (gdi/raw) for printers that do not understand raw ESC/POS, such as some
+// fiscal printers with a swapped driver (R9). A missing entry is 'text': every
+// printer, new or existing, moves to text with the update (KD2, R10), with no
+// migration.
+
+export const PRINT_MODES = ['text', 'compat'];
+
+export function setPrintMode(printerName, mode) {
+  const modes = store.get('printModes', {});
+  modes[printerName] = mode;
+  store.set('printModes', modes);
+  console.log('[Settings] Print mode saved:', printerName, '->', mode);
+}
+
+export function getPrintMode(printerName) {
+  const modes = store.get('printModes', {});
+  const mode = printerName ? modes[printerName] : null;
+  return PRINT_MODES.includes(mode) ? mode : 'text';
+}
+
 export function getPrinterTransports() {
   return store.get('printerTransports', {});
 }

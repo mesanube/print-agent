@@ -5,7 +5,7 @@ import fsp from 'fs/promises';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { getSystemPrinters, invalidatePrinterCache } from '../printing/printer-manager.js';
-import { printTestPage, printCalibrationPage } from '../printing/index.js';
+import { printTestPage, printCalibrationPage, printTextTestPage } from '../printing/index.js';
 import { printReceiptNative } from '../printing/native/windows-native-printer.js';
 import i18next from '../core/i18n.js';
 import { generateQRCodeHTML, generateQRCodeData } from '../printing/qrcode-generator.js';
@@ -17,7 +17,8 @@ import {
     setPrinterCutter, getPrinterCutter,
     setPaperWidth, getPaperWidth,
     setWidthAdjust, getWidthAdjust,
-    setPrinterTransport, getPrinterTransport
+    setPrinterTransport, getPrinterTransport,
+    setPrintMode, getPrintMode, PRINT_MODES
 } from '../core/store.js';
 import { getAbsoluteLogoPath, getLogoAsBase64 } from '../shared/file-helpers.js';
 
@@ -451,6 +452,30 @@ export function setupSettingsIPC() {
     console.log('[PrinterTransport] Saved, store now reads:', getPrinterTransport(printerName));
     return { success: true };
   });
+  // Per-printer print mode (KD2, KTD9): 'text' or 'compat'.
+  ipcMain.handle('get-print-mode', (event, printerName) => {
+    return { mode: getPrintMode(printerName) };
+  });
+  ipcMain.handle('set-print-mode', (event, printerName, mode) => {
+    if (!printerName) {
+      return { success: false, message: 'No printer selected.' };
+    }
+    if (!PRINT_MODES.includes(mode)) {
+      console.warn('[PrintMode] Rejected invalid value:', mode);
+      return { success: false, message: 'Invalid print mode. Must be "text" or "compat".' };
+    }
+    setPrintMode(printerName, mode);
+    return { success: true };
+  });
+  ipcMain.handle('print-text-test-page', async (event, printerName) => {
+    try {
+      await printTextTestPage(printerName || getSelectedPrinter());
+      return { success: true, message: i18next.t('ipcMessages.textTestSuccess') };
+    } catch (error) {
+      console.error('Text test page print failed:', error);
+      return { success: false, message: i18next.t('ipcMessages.textTestError', { message: error.message }) };
+    }
+  });
   ipcMain.handle('print-calibration-page', async () => {
     try {
       const selectedPrinter = getSelectedPrinter();
@@ -504,4 +529,7 @@ export function cleanupSettingsIPC() {
   ipcMain.removeHandler('print-calibration-page');
   ipcMain.removeHandler('get-printer-transport');
   ipcMain.removeHandler('set-printer-transport');
+  ipcMain.removeHandler('get-print-mode');
+  ipcMain.removeHandler('set-print-mode');
+  ipcMain.removeHandler('print-text-test-page');
 }

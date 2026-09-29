@@ -1,4 +1,4 @@
-import { printReceipt as printReceiptWindows, printOrder as printOrderWindows, printOrderUpdate as printOrderUpdateWindows, printTestPage as printTestPageWindows, printInvoice as printInvoiceWindows, printCashClose as printCashCloseWindows, printDayZ as printDayZWindows, printCalibrationPage as printCalibrationPageWindows } from './windows-printer.js';
+import { printReceipt as printReceiptWindows, printOrder as printOrderWindows, printOrderUpdate as printOrderUpdateWindows, printTestPage as printTestPageWindows, printInvoice as printInvoiceWindows, printCashClose as printCashCloseWindows, printDayZ as printDayZWindows, printCalibrationPage as printCalibrationPageWindows, printTextTestPage as printTextTestPageWindows } from './windows-printer.js';
 import { printReceipt as printReceiptUnix, printOrder as printOrderUnix, printOrderUpdate as printOrderUpdateUnix, printTestPage as printTestPageUnix } from './unix-printer.js';
 
 const isWindows = process.platform === 'win32';
@@ -157,6 +157,25 @@ export async function printCalibrationPage(printerName = null) {
   }
   await printCalibrationPageWindows(printerName);
   console.log(`[Print] ✓ Calibration page printed successfully to ${printerName || 'default printer'}`);
+}
+
+/**
+ * Prints the ESC/POS text test page (R11). Windows-only like calibration: text
+ * mode writes RAW to the Windows queue. With USE_WINDOWS_PATH + dry run it
+ * writes a text preview instead, so it can be checked on macOS.
+ * @param {string|null} printerName - Optional printer name to override default.
+ */
+export async function printTextTestPage(printerName = null) {
+  if (!useWindowsPath) {
+    console.log('[Print] text test page is only supported on Windows; skipping on this platform');
+    return;
+  }
+  const dryRun = await printTextTestPageWindows(printerName);
+  if (dryRun) {
+    console.log(`[Print DEBUG] Text test page written to ${dryRun.file} (not printed)`);
+  } else {
+    console.log(`[Print] ✓ Text test page printed successfully to ${printerName || 'default printer'}`);
+  }
 }
 
 /**

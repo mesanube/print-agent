@@ -15,7 +15,7 @@ vi.mock('electron-store', () => ({
   },
 }));
 
-const { getPrinterCutter, setPrinterCutter } = await import('./store.js');
+const { getPrinterCutter, setPrinterCutter, getPrintMode, setPrintMode } = await import('./store.js');
 
 beforeEach(() => {
   memory.clear();
@@ -42,5 +42,23 @@ describe('printer cutter setting (KD6)', () => {
 
   it('falls back to enabled when no printer name is given', () => {
     expect(getPrinterCutter(null)).toBe(true);
+  });
+});
+
+describe('print mode setting (KD2)', () => {
+  it('Covers AE3: a printer with no saved value prints as text', () => {
+    expect(getPrintMode('Fiscal')).toBe('text');
+  });
+
+  it('keeps compat on one printer without touching another', () => {
+    setPrintMode('Fiscal', 'compat');
+    expect(getPrintMode('Fiscal')).toBe('compat');
+    expect(getPrintMode('Cocina')).toBe('text');
+  });
+
+  it('switching back to text is stored per printer', () => {
+    setPrintMode('Fiscal', 'compat');
+    setPrintMode('Fiscal', 'text');
+    expect(getPrintMode('Fiscal')).toBe('text');
   });
 });

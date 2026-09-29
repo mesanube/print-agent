@@ -4,13 +4,16 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { BrowserWindow } from 'electron';
-import { getSelectedPrinter, getPrinterCutter, getPrinterTransport } from '../core/store.js';
+import { getSelectedPrinter, getPrinterCutter, getPrinterTransport, getPrintMode, getPaperWidth } from '../core/store.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { requireSystemPrinter } from './printer-manager.js';
 import { getPaperGeometry } from './paper-geometry.js';
 import { renderCalibrationHtml } from './calibration-page.js';
 import { printBitmap as printBitmapGdi } from './transports/gdi-transport.js';
-import { printBitmap as printBitmapRaw } from './transports/raw-transport.js';
+import { printBitmap as printBitmapRaw, writeRaw } from './transports/raw-transport.js';
+import { layoutContext, buildReceipt, buildInvoice, buildOrder, buildOrderUpdate, buildCashClose, buildDayZ } from './text/documents.js';
+import { encodeDocument } from './text/text-encoder.js';
+import { buildTextTestPage } from './text/test-page.js';
 
 const TRANSPORTS = { gdi: printBitmapGdi, raw: printBitmapRaw };
 
@@ -308,10 +311,63 @@ async function doPrintHtml(htmlContent, printerName = null, timing = null) {
   timing?.mark('envio');
 }
 
+// --- Text path (ESC/POS text, KD1) -----------------------------------------
+// Builds the document as text blocks and writes the encoded bytes straight to
+// the Windows queue. No offscreen window and no image capture, so it does not
+// need the render queue above either.
+
+async function dumpTextForReview(blocks, printerName) {
+  await fs.mkdir(DEBUG_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const safePrinter = (printerName || 'noprinter').replace(/[^A-Za-z0-9._-]+/g, '_');
+  const file = path.join(DEBUG_DIR, `receipt-${stamp}-${safePrinter}-${randomUUID().slice(0, 6)}.txt`);
+  const preview = blocks.map((b) => {
+    if (b.type === 'text') return b.text;
+    if (b.type === 'qr') return `[QR ${b.data}]`;
+    if (b.type === 'logo') return `[LOGO ${b.url}]`;
+    return '';
+  }).join('\n');
+  await fs.writeFile(file, preview, 'utf-8');
+  console.log(`[Print DEBUG] Text preview written to ${file}`);
+  return { dryRun: true, file };
+}
+
+/**
+ * Prints one document through the text path.
+ * @param {Function} build - a documents.js builder
+ * @param {object} docData - the builder's input ({ order, restaurant, ... })
+ */
+async function printText(build, docData, printerName = null, timing = null) {
+  const selectedPrinter = printerName || getSelectedPrinter();
+  if (!selectedPrinter) {
+    throw new Error('No printer selected or specified.');
+  }
+  timing?.setMode('text');
+  const ctx = layoutContext({
+    paper: getPaperWidth(selectedPrinter),
+    settings: docData.restaurant?.receiptSettings,
+  });
+  const blocks = build(docData, ctx);
+  if (DRY_RUN) return dumpTextForReview(blocks, selectedPrinter);
+
+  await requireSystemPrinter(selectedPrinter);
+  const bytes = encodeDocument(blocks, ctx, { cutter: getPrinterCutter(selectedPrinter), logo: null });
+  timing?.mark('armado');
+  console.log(`[Windows Print] Printing to ${selectedPrinter} as ESC/POS text`);
+  writeRaw(selectedPrinter, bytes, 'Mesanube ticket');
+  timing?.mark('envio');
+}
+
+// Per-printer choice between the text path and the image path (KTD9).
+const usesText = (printerName) => getPrintMode(printerName || getSelectedPrinter()) === 'text';
+
 export async function printReceipt(data, printerName = null, timing = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
   const effectivePrinter = printerName || getSelectedPrinter();
+  if (usesText(effectivePrinter)) {
+    return printText(buildReceipt, { order: orderData, restaurant }, effectivePrinter, timing);
+  }
   const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-receipt.html', "receipt", undefined, effectivePrinter);
   await printHtml(html, effectivePrinter, timing);
 }
@@ -320,6 +376,9 @@ export async function printOrder(data, printerName = null, timing = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
   const effectivePrinter = printerName || getSelectedPrinter();
+  if (usesText(effectivePrinter)) {
+    return printText(buildOrder, { order: orderData, restaurant }, effectivePrinter, timing);
+  }
   // Use modern-order.html template for kitchen orders
   const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-order.html', "order", undefined, effectivePrinter);
   return printHtml(html, effectivePrinter, timing);
@@ -333,6 +392,9 @@ export async function printOrder(data, printerName = null, timing = null) {
 export async function printOrderUpdate(data, printerName = null, timing = null) {
   const order = data.order || {};
   const lines = Array.isArray(data.lines) ? data.lines : [];
+  if (usesText(printerName)) {
+    return printText(buildOrderUpdate, { order, lines, restaurant: data.restaurant }, printerName, timing);
+  }
   const now = new Date();
 
   const escapeHtml = (s) =>
@@ -497,6 +559,9 @@ export async function printInvoice(data, printerName = null, timing = null) {
 
   const { restaurant, order, invoiceData } = data
   const effectivePrinter = printerName || getSelectedPrinter();
+  if (usesText(effectivePrinter)) {
+    return printText(buildInvoice, { order, restaurant, invoiceData }, effectivePrinter, timing);
+  }
 
   const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', "invoice", invoiceData, effectivePrinter);
 
@@ -505,14 +570,26 @@ export async function printInvoice(data, printerName = null, timing = null) {
 
 export async function printCashClose(data, printerName = null, timing = null) {
   const { restaurant, summary } = data;
+  if (usesText(printerName)) {
+    return printText(buildCashClose, { summary, restaurant }, printerName, timing);
+  }
   const html = await renderCashCloseHtml(summary, restaurant);
   await printHtml(html, printerName, timing);
 }
 
 export async function printDayZ(data, printerName = null, timing = null) {
   const { restaurant, summary } = data;
+  if (usesText(printerName)) {
+    return printText(buildDayZ, { summary, restaurant }, printerName, timing);
+  }
   const html = await renderDayZHtml(summary, restaurant);
   await printHtml(html, printerName, timing);
+}
+
+/** Text-mode test page for the selected (or given) printer (R11). */
+export async function printTextTestPage(printerName = null) {
+  const selected = printerName || getSelectedPrinter();
+  return printText(buildTextTestPage, { printerName: selected }, selected);
 }
 
 export async function printCalibrationPage(printerName = null) {

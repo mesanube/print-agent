@@ -74,12 +74,17 @@
     "widthAdjust": "Ajuste de ancho",
     "widthAdjustHint": "Si el ticket se corta por la derecha, imprima la página de calibración y cargue el número donde se corta.",
     "printCalibrationPage": "Imprimir página de calibración",
-    "printerTransport": "Modo de impresión",
+    "printerTransport": "Transporte (modo Compatibilidad)",
     "printerTransportHint": "Pruebe con la página de prueba antes de dejar una impresora en ESC/POS (RAW).",
     "transportGdi": "Driver del sistema",
     "transportRaw": "ESC/POS (RAW)",
     "capturing": "Capturando plantilla...",
-    "exporting": "Exportando imagen..."
+    "exporting": "Exportando imagen...",
+    "printMode": "Modo de impresión",
+    "printModeText": "Texto (rápido)",
+    "printModeCompat": "Compatibilidad (imagen)",
+    "printModeHint": "Texto usa las letras de la impresora y es el más rápido. Si el ticket sale mal, imprima la prueba en texto y, si no se lee, cambie a Compatibilidad.",
+    "printTextTestPage": "Imprimir prueba en texto"
   },
   "ipcMessages": {
     "printersError": "Error al cargar las impresoras disponibles",
@@ -92,6 +97,8 @@
     "calibrationSuccess": "Página de calibración enviada correctamente",
     "calibrationError": "Error al imprimir la página de calibración: {{message}}",
     "exportSuccess": "Imagen guardada con éxito.",
-    "exportError": "Error al guardar la imagen."
+    "exportError": "Error al guardar la imagen.",
+    "textTestSuccess": "Prueba en texto enviada correctamente",
+    "textTestError": "Error al imprimir la prueba en texto: {{message}}"
   }
 }
