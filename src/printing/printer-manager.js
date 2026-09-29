@@ -58,19 +58,28 @@ export function createPrinterCache(load, { ttlMs = PRINTER_CACHE_TTL_MS, now = D
 
 const printerCache = createPrinterCache(() => loadSystemPrinters());
 
-/** Cached system printer list (see createPrinterCache). */
+// A print job only needs to know the printer exists, not which one is the
+// Windows default. On Windows the default lookup is the expensive part (a
+// hidden BrowserWindow), so the print path uses its own cache over the native
+// name list alone; the full list stays for settings and startup auto-select.
+const printerNameCache = createPrinterCache(() =>
+  process.platform === 'win32' ? getAllPrintersNative() : loadSystemPrinters()
+);
+
+/** Cached system printer list, with the Windows default flagged (see createPrinterCache). */
 export function getSystemPrinters() {
   return printerCache.list();
 }
 
-/** Forces the next getSystemPrinters() to enumerate again. */
+/** Forces the next enumeration (full list and print-path names) to run again. */
 export function invalidatePrinterCache() {
   printerCache.invalidate();
+  printerNameCache.invalidate();
 }
 
 /** Resolves the printer or throws "Printer ... not found" after one fresh retry. */
 export function requireSystemPrinter(printerName) {
-  return printerCache.requirePrinter(printerName);
+  return printerNameCache.requirePrinter(printerName);
 }
 
 async function loadSystemPrinters() {
