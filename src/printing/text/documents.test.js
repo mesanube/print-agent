@@ -48,6 +48,21 @@ describe('buildInvoice', () => {
 });
 
 describe('buildReceipt', () => {
+  it('uses the default thank-you line when the location has no footer message', () => {
+    const blocks = buildReceipt({ order: { items: [], orderTotal: 0 }, restaurant: {} }, layoutContext());
+    expect(has(blocks, '¡Gracias por su compra!')).toBe(true);
+  });
+
+  it('replaces the default thank-you line with the location footer, without printing both', () => {
+    const blocks = buildReceipt(
+      { order: { items: [], orderTotal: 0 }, restaurant: {} },
+      layoutContext({ settings: { footerMessage: 'Seguinos en @pentos' } }),
+    );
+    expect(has(blocks, 'Seguinos en @pentos')).toBe(true);
+    expect(has(blocks, '¡Gracias por su compra!')).toBe(false);
+    expect(has(blocks, 'TICKET NO VALIDO COMO FACTURA')).toBe(true);
+  });
+
   it('skips voided lines and shows the discount above the total', () => {
     const order = {
       items: [{ name: 'Cafe', price: 1500, quantity: 2 }, { name: 'Anulado', price: 999, quantity: 0 }],
@@ -126,6 +141,17 @@ describe('encodeDocument', () => {
     expect(containsSeq(bytes, [0xa0, 0x20, 0x82, 0x20, 0xa1, 0x20, 0xa2, 0x20, 0xa3])).toBe(true);
   });
 
+  it('feeds enough blank lines after the final receipt row for the cutter', () => {
+    const ctx = layoutContext({ settings: { footerMessage: 'Mensaje personalizado' } });
+    const blocks = buildReceipt({ order: { items: [], orderTotal: 0 }, restaurant: {} }, ctx);
+    const bytes = encodeDocument(blocks, ctx, { cutter: true });
+    const cutAt = bytes.findIndex((b, i, all) => b === 0x1d && all[i + 1] === 0x56);
+    let lineFeeds = 0;
+    for (let i = cutAt - 1; i >= 0 && bytes[i] === 0x0a; i--) lineFeeds++;
+    expect(cutAt).toBeGreaterThan(-1);
+    expect(lineFeeds).toBeGreaterThanOrEqual(6);
+  });
+
   it('emits no cut command when the printer has the cut off', () => {
     expect(containsSeq(bytesOf('hola', { cutter: false }), CUT_PREFIX)).toBe(false);
   });
@@ -161,17 +187,12 @@ describe('receipt settings per location (R13, R14)', () => {
     expect(blocks.find((b) => b.type === 'text' && b.text.startsWith('Cafe x1')).height).toBe(1);
   });
 
-  it('prints the configured footer before the end of the ticket', () => {
+  it('replaces the thank-you line before the fixed invoice disclaimer', () => {
     const blocks = buildReceipt({ order, restaurant: {} }, layoutContext({ settings }));
     const footer = indexOf(blocks, (b) => b.type === 'text' && b.text.includes('Seguinos en @pentos'));
-    const lastText = blocks.map((b) => b.type).lastIndexOf('text');
-    expect(footer).toBe(lastText);
-  });
-
-  it('adds no extra line when there is no footer', () => {
-    const withFooter = buildReceipt({ order, restaurant: {} }, layoutContext({ settings }));
-    const without = buildReceipt({ order, restaurant: {} }, layoutContext({ settings: { fontSize: 'grande' } }));
-    expect(texts(withFooter).length - texts(without).length).toBe(1);
+    const disclaimer = indexOf(blocks, (b) => b.type === 'text' && b.text.includes('TICKET NO VALIDO COMO FACTURA'));
+    expect(has(blocks, '¡Gracias por su compra!')).toBe(false);
+    expect(disclaimer).toBeGreaterThan(footer);
   });
 
   it('adds a logo block only when the location has a logo', () => {

@@ -30,6 +30,6 @@ export function buildTextTestPage({ printerName = '' } = {}, ctx) {
     { type: 'qr', data: 'https://www.mesanube.com' },
     text(center('Si todo se lee bien, esta impresora', cols)),
     text(center('puede quedar en modo Texto.', cols)),
-    { type: 'feed', lines: 3 },
+    { type: 'feed', lines: 5 },
   ];
 }

@@ -95,15 +95,18 @@ class DocBuilder {
     return this;
   }
 
-  footerMessage() {
-    const msg = this.ctx.settings.footerMessage;
+  footerMessage(defaultMessage = '') {
+    const configured = this.ctx.settings.footerMessage;
+    // The receipt's thank-you line is the default footer. A location message
+    // replaces it rather than being printed as a second, redundant line.
+    const msg = configured && String(configured).trim() ? String(configured) : defaultMessage;
     if (msg && String(msg).trim()) {
       for (const paragraph of String(msg).split(/\r?\n/)) this.centered(paragraph);
     }
     return this;
   }
 
-  feed(lines = 3) {
+  feed(lines = 5) {
     this.blocks.push({ type: 'feed', lines });
     return this;
   }
@@ -174,9 +177,8 @@ export function buildReceipt({ order = {}, restaurant = {} }, ctx) {
   discountRows(doc, order);
   doc.total('TOTAL', order.orderTotal);
   doc.rule();
-  doc.centered('¡Gracias por su compra!');
+  doc.footerMessage('¡Gracias por su compra!');
   doc.centered('TICKET NO VALIDO COMO FACTURA');
-  doc.footerMessage();
   return doc.feed().blocks;
 }
 
