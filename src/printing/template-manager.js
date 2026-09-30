@@ -106,6 +106,8 @@ function expenseLines(items) {
   }).join('');
 }
 
+// Mirrored in text/documents.js (text mode). Change both; text/parity.test.js
+// checks they print the same information.
 /**
  * Render the printable cash-close summary HTML from a frozen closeSummary
  * snapshot. Dedicated renderer (not generateHtmlFromTemplate, which is order-
@@ -254,6 +256,8 @@ function moneyRowText(label, value) {
   return `<div class="row"><span class="label">${escapeHtml(label)}</span><span class="amount">${escapeHtml(value)}</span></div>`;
 }
 
+// Mirrored in text/documents.js (text mode). Change both; text/parity.test.js
+// checks they print the same information.
 /**
  * Render the internal day Z símil (MES-155): a non-fiscal day+location summary
  * (sales + consolidated arqueo of closed shifts + expense sections). Reuses the
@@ -358,6 +362,8 @@ export async function renderDayZHtml(summary, restaurantData) {
   return finalHtml;
 }
 
+// Mirrored in text/documents.js (text mode). Change both; text/parity.test.js
+// checks they print the same information.
 /**
  * Generates a complete HTML string by loading a template and injecting receipt data.
  * @param {object} orderData - The data for the order.

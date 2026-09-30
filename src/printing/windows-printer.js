@@ -352,8 +352,9 @@ async function printText(build, docData, printerName = null, timing = null) {
   if (DRY_RUN) return dumpTextForReview(blocks, selectedPrinter);
 
   await requireSystemPrinter(selectedPrinter);
-  const logoUrl = ctx.settings.logoUrl;
-  const logo = logoUrl ? await logoCache.get(logoUrl, getPaperGeometry(selectedPrinter).dots) : null;
+  // Only documents that print the logo wait for it (comandas never do).
+  const logoBlock = blocks.find((b) => b.type === 'logo');
+  const logo = logoBlock ? await logoCache.get(logoBlock.url, getPaperGeometry(selectedPrinter).dots) : null;
   const bytes = encodeDocument(blocks, ctx, { cutter: getPrinterCutter(selectedPrinter), logo });
   timing?.mark('armado');
   console.log(`[Windows Print] Printing to ${selectedPrinter} as ESC/POS text`);
@@ -387,6 +388,7 @@ export async function printOrder(data, printerName = null, timing = null) {
   return printHtml(html, effectivePrinter, timing);
 }
 
+// Mirrored in text/documents.js buildOrderUpdate (text mode). Change both.
 /**
  * Print a kitchen UPDATE chit (Windows). Generates minimal inline HTML
  * matching the unix chit format and routes through the standard printHtml

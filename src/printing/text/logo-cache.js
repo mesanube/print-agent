@@ -42,11 +42,55 @@ function padTo8({ data, width, height }) {
   return { data: out, width: w, height: h };
 }
 
+// The logo is awaited before a ticket's bytes are written, so a slow or dead
+// logo host must never hold the ticket: the download is bounded in time and
+// size, a failure is remembered for a while instead of retried on every
+// ticket, and concurrent first prints share one download. Only https URLs are
+// fetched: the agent sits inside the restaurant network and must not be
+// pointed at local addresses.
+const DEFAULT_TIMEOUT_MS = 2000;
+const DEFAULT_FAILURE_TTL_MS = 60 * 1000;
+const DEFAULT_MAX_BYTES = 1024 * 1024;
+
+const withTimeout = (promise, ms) =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
+
 /**
- * @param {{fetchImpl?: Function, decode?: Function, log?: Function}} [deps]
+ * @param {{fetchImpl?: Function, decode?: Function, log?: Function, timeoutMs?: number,
+ *   failureTtlMs?: number, maxBytes?: number, now?: () => number}} [deps]
  */
-export function createLogoCache({ fetchImpl = (...args) => fetch(...args), decode = decodeWithNativeImage, log = console.warn } = {}) {
+export function createLogoCache({
+  fetchImpl = (...args) => fetch(...args),
+  decode = decodeWithNativeImage,
+  log = console.warn,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  failureTtlMs = DEFAULT_FAILURE_TTL_MS,
+  maxBytes = DEFAULT_MAX_BYTES,
+  now = Date.now,
+} = {}) {
   const cache = new Map();
+  const failedAt = new Map();
+  const pending = new Map();
+
+  async function load(url, maxWidth) {
+    const download = (async () => {
+      const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const declared = Number(response.headers?.get?.('content-length'));
+      if (declared > maxBytes) throw new Error(`logo is ${declared} bytes, over the ${maxBytes} byte cap`);
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength > maxBytes) throw new Error(`logo is ${buffer.byteLength} bytes, over the ${maxBytes} byte cap`);
+      return buffer;
+    })();
+    const buffer = await withTimeout(download, timeoutMs);
+    return padTo8(await decode(new Uint8Array(buffer), maxWidth));
+  }
 
   /**
    * @param {string} url - receiptSettings.logoUrl
@@ -55,19 +99,30 @@ export function createLogoCache({ fetchImpl = (...args) => fetch(...args), decod
    */
   async function get(url, maxWidth) {
     if (!url) return null;
-    const key = `${url}|${maxWidth}`;
-    if (cache.has(key)) return cache.get(key);
-    try {
-      const response = await fetchImpl(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const buffer = await response.arrayBuffer();
-      const raster = padTo8(await decode(new Uint8Array(buffer), maxWidth));
-      cache.set(key, raster);
-      return raster;
-    } catch (error) {
-      log(`[Logo] Could not load receipt logo ${url}: ${error.message}. Printing without it.`);
+    if (!/^https:\/\//i.test(url)) {
+      log(`[Logo] Ignoring receipt logo ${url}: only https URLs are fetched.`);
       return null;
     }
+    const key = `${url}|${maxWidth}`;
+    if (cache.has(key)) return cache.get(key);
+    const failed = failedAt.get(key);
+    if (failed != null && now() - failed < failureTtlMs) return null;
+    if (pending.has(key)) return pending.get(key);
+
+    const attempt = load(url, maxWidth)
+      .then((raster) => {
+        cache.set(key, raster);
+        failedAt.delete(key);
+        return raster;
+      })
+      .catch((error) => {
+        failedAt.set(key, now());
+        log(`[Logo] Could not load receipt logo ${url}: ${error.message}. Printing without it.`);
+        return null;
+      })
+      .finally(() => pending.delete(key));
+    pending.set(key, attempt);
+    return attempt;
   }
 
   return { get };

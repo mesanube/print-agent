@@ -40,13 +40,51 @@ describe('createLogoCache', () => {
     expect(log).toHaveBeenCalled();
   });
 
-  it('retries a failed logo on the next print instead of caching the failure', async () => {
+  it('does not retry a failed logo on every print, and retries it once the failure window passes', async () => {
+    let clock = 0;
     const fetchImpl = vi.fn()
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce({ ok: true, arrayBuffer: async () => png.buffer });
-    const cache = createLogoCache({ fetchImpl, decode: fakeDecode, log: () => {} });
+    const cache = createLogoCache({ fetchImpl, decode: fakeDecode, log: () => {}, failureTtlMs: 60000, now: () => clock });
     expect(await cache.get('https://cdn/logo.png', 576)).toBeNull();
+    clock += 1000;
+    expect(await cache.get('https://cdn/logo.png', 576)).toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    clock += 60000;
     expect(await cache.get('https://cdn/logo.png', 576)).not.toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up on a logo host that never answers, instead of holding the ticket', async () => {
+    const fetchImpl = vi.fn(() => new Promise(() => {}));
+    const cache = createLogoCache({ fetchImpl, decode: fakeDecode, log: () => {}, timeoutMs: 20 });
+    const started = Date.now();
+    expect(await cache.get('https://cdn/slow.png', 576)).toBeNull();
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(fetchImpl.mock.calls[0][1].signal).toBeDefined();
+  });
+
+  it('rejects a logo larger than the size cap', async () => {
+    const big = new Uint8Array(2048);
+    const fetchImpl = vi.fn(async () => ({ ok: true, headers: { get: () => null }, arrayBuffer: async () => big.buffer }));
+    const cache = createLogoCache({ fetchImpl, decode: fakeDecode, log: () => {}, maxBytes: 1024 });
+    expect(await cache.get('https://cdn/big.png', 576)).toBeNull();
+  });
+
+  it('never fetches a URL that is not https', async () => {
+    const fetchImpl = okFetch();
+    const cache = createLogoCache({ fetchImpl, decode: fakeDecode, log: () => {} });
+    expect(await cache.get('http://192.168.0.1/admin', 576)).toBeNull();
+    expect(await cache.get('file:///etc/passwd', 576)).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('shares one download between concurrent first prints', async () => {
+    const fetchImpl = okFetch();
+    const cache = createLogoCache({ fetchImpl, decode: fakeDecode });
+    const [a, b] = await Promise.all([cache.get('https://cdn/logo.png', 576), cache.get('https://cdn/logo.png', 576)]);
+    expect(a).toBe(b);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('returns null for an empty URL without fetching', async () => {
