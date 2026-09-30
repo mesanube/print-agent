@@ -12,11 +12,15 @@ const invoiceData = {
   razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisor: '30712345678',
   docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '123', inicioActividadEmisor: '01/01/2020',
   condicionIvaEmisorLabel: 'Responsable Inscripto', tipoComprobanteLabel: 'Factura B', tipoComprobante: 6,
-  razonSocialReceptor: 'Consumidor Final', tipoDocReceptorLabel: 'DNI', tipoDocReceptor: 99, docReceptor: '0', docReceptorFormatted: '0',
+  // Shapes as the server stores them (invoicing.controller.js): AFIP's
+  // YYYYMMDD CbteFch, string CUIT and receiver document fields.
+  razonSocialReceptor: 'Consumidor Final', tipoDocReceptorLabel: 'DNI', tipoDocReceptor: '99', docReceptor: '0', docReceptorFormatted: '0',
   condicionIvaReceptorLabel: 'Consumidor Final', puntoVenta: 3, numeroComprobante: 1234, impIVA: 100,
   otrosImpuestosNacionales: 0, cae: '74123456789012', vencimientoCAEFormatted: '10/10/2026',
-  fechaEmision: '2026-09-29', total: 40000,
+  fechaEmision: '20260929', total: 40000,
 };
+
+const afipPayload = (url) => JSON.parse(Buffer.from(new URL(url).searchParams.get('p'), 'base64url').toString());
 
 const items = (n) => Array.from({ length: n }, (_, i) => ({ name: `Plato ${i + 1}`, price: 1000, quantity: 1 }));
 
@@ -40,6 +44,21 @@ describe('buildInvoice', () => {
     const blocks = buildInvoice({ order: { items: items(1), orderTotal: 1000 }, invoiceData }, layoutContext());
     const qr = blocks.find((b) => b.type === 'qr');
     expect(qr.data.startsWith('https://www.afip.gob.ar/fe/qr/?p=')).toBe(true);
+  });
+
+  it('encodes the AFIP QR payload with the RG 4892 field types', () => {
+    const blocks = buildInvoice({ order: { items: items(1), orderTotal: 1000 }, invoiceData }, layoutContext());
+    const payload = afipPayload(blocks.find((b) => b.type === 'qr').data);
+    expect(payload).toEqual({
+      ver: 1, fecha: '2026-09-29', cuit: 30712345678, ptoVta: 3, tipoCmp: 6, nroCmp: 1234,
+      importe: 40000, moneda: 'PES', ctz: 1, tipoDocRec: 99, nroDocRec: 0, tipoCodAut: 'E', codAut: 74123456789012,
+    });
+  });
+
+  it('leaves a blank line above the QR, matching the one below it', () => {
+    const blocks = buildInvoice({ order: { items: items(1), orderTotal: 1000 }, invoiceData }, layoutContext());
+    const qr = indexOf(blocks, (b) => b.type === 'qr');
+    expect(blocks[qr - 1]).toEqual({ type: 'feed', lines: 1 });
   });
 
   it('emits no QR block for an invoice without CAE', () => {
@@ -127,36 +146,31 @@ describe('buildCashClose / buildDayZ', () => {
   });
 });
 
-const qrModuleSize = (bytes) => {
+const containsBytes = (arr, seq) => arr.some((_, i) => seq.every((v, j) => arr[i + j] === v));
+
+// Width in dots of the first GS v 0 raster image in the output.
+const rasterWidth = (bytes) => {
   const output = Array.from(bytes);
-  const index = output.findIndex((byte, i) =>
-    byte === 0x1d && output[i + 1] === 0x28 && output[i + 2] === 0x6b &&
-    output[i + 5] === 0x31 && output[i + 6] === 0x43,
-  );
-  return output[index + 7];
+  const i = output.findIndex((byte, j) => byte === 0x1d && output[j + 1] === 0x76 && output[j + 2] === 0x30);
+  return i < 0 ? null : (output[i + 4] + output[i + 5] * 256) * 8;
 };
 
-describe('text-mode QR sizing', () => {
+describe('text-mode QR', () => {
   const invoiceBlocks = buildInvoice({ order: { items: items(1), orderTotal: 1000 }, invoiceData }, layoutContext());
   const invoiceQr = invoiceBlocks.find((block) => block.type === 'qr').data;
   const invoiceModules = QRCode.create(invoiceQr, { errorCorrectionLevel: 'M' }).modules.size;
 
-  it('fits an AFIP QR with a quiet zone on both paper widths', () => {
-    expect(invoiceModules).toBe(69);
-    for (const [paper, expectedSize, dots] of [['58mm', 4, 384], ['80mm', 6, 576]]) {
-      const ctx = layoutContext({ paper });
-      const bytes = encodeDocument([{ type: 'qr', data: invoiceQr }], ctx);
-      const size = qrModuleSize(bytes);
-      expect(size).toBe(expectedSize);
-      expect(size * (invoiceModules + 8)).toBeLessThanOrEqual(dots);
-    }
+  it('prints as a raster image, never the native QR command some 58mm firmwares ignore', () => {
+    const bytes = Array.from(encodeDocument([{ type: 'qr', data: invoiceQr }], layoutContext({ paper: '58mm' })));
+    expect(containsBytes(bytes, [0x1d, 0x28, 0x6b])).toBe(false);
+    expect(rasterWidth(bytes)).not.toBeNull();
   });
 
-  it('keeps the short text-test QR at six dots on either paper width', () => {
-    for (const paper of ['58mm', '80mm']) {
-      const ctx = layoutContext({ paper });
-      const bytes = encodeDocument([{ type: 'qr', data: 'https://www.mesanube.com' }], ctx);
-      expect(qrModuleSize(bytes)).toBe(6);
+  it('fits an AFIP QR with its quiet zone: 4 dots per module on 58mm, 5 on 80mm', () => {
+    for (const [paper, moduleDots, paperDots] of [['58mm', 4, 384], ['80mm', 5, 576]]) {
+      const width = rasterWidth(encodeDocument([{ type: 'qr', data: invoiceQr }], layoutContext({ paper })));
+      expect(width).toBe(Math.ceil(((invoiceModules + 8) * moduleDots) / 8) * 8);
+      expect(width).toBeLessThanOrEqual(paperDots);
     }
   });
 });

@@ -157,22 +157,31 @@ export function generateQRCodeData(orderData, restaurantData) {
  * @param {object} invoiceData - Invoice data with AFIP fields
  * @returns {string} - QR data URL for AFIP validation
  */
+// AFIP stores CbteFch as YYYYMMDD; the QR spec wants YYYY-MM-DD.
+const afipQrDate = (value) => {
+  const s = String(value ?? '');
+  return /^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}` : s.slice(0, 10);
+};
+
+const afipNumber = (value) => Number(String(value ?? '').replace(/[^\d.]/g, '')) || 0;
+
 export function generateAfipQRCodeData(invoiceData) {
-  console.log(invoiceData.docEmisor)
+  // RG 4892: numeric fields must be JSON numbers and `moneda` is AFIP's
+  // currency code (PES), or AFIP's validator does not recognize the invoice.
   const qrData = {
     ver: 1,
-    fecha: invoiceData.fechaEmision,
-    cuit: invoiceData.docEmisor || invoiceData.emisor?.cuit || invoiceData.cuit,
-    ptoVta: invoiceData.puntoVenta,
-    tipoCmp: invoiceData.tipoComprobante,
-    nroCmp: invoiceData.numeroComprobante,
-    importe: invoiceData.total,
-    moneda: 'ARS', // Always use ARS
+    fecha: afipQrDate(invoiceData.fechaEmision),
+    cuit: afipNumber(invoiceData.docEmisor || invoiceData.emisor?.cuit || invoiceData.cuit),
+    ptoVta: afipNumber(invoiceData.puntoVenta),
+    tipoCmp: afipNumber(invoiceData.tipoComprobante),
+    nroCmp: afipNumber(invoiceData.numeroComprobante),
+    importe: afipNumber(invoiceData.total),
+    moneda: 'PES',
     ctz: 1,
-    tipoDocRec: invoiceData.tipoDocReceptor || invoiceData.receptor?.tipoDoc,
-    nroDocRec: invoiceData.docReceptor || invoiceData.receptor?.nroDoc,
+    tipoDocRec: afipNumber(invoiceData.tipoDocReceptor ?? invoiceData.receptor?.tipoDoc),
+    nroDocRec: afipNumber(invoiceData.docReceptor ?? invoiceData.receptor?.nroDoc),
     tipoCodAut: 'E',
-    codAut: parseInt(invoiceData.cae),
+    codAut: afipNumber(invoiceData.cae),
   };
 
   const qrPayload = Buffer.from(JSON.stringify(qrData)).toString('base64url');

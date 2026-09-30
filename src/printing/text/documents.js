@@ -211,6 +211,7 @@ export function buildInvoice({ order = {}, restaurant = {}, invoiceData = {} }, 
   doc.row('IVA Contenido', money(inv.impIVA));
   doc.row('Otros tributos nacionales indirectos', money(inv.otrosImpuestosNacionales));
   if (inv.cae) {
+    doc.feed(1);
     doc.qr(generateAfipQRCodeData(inv));
     doc.paragraph(`CAE: ${inv.cae}`, { bold: true });
     doc.paragraph(`Vencimiento CAE: ${inv.vencimientoCAEFormatted || ''}`, { bold: true });

@@ -3,13 +3,36 @@ import QRCode from 'qrcode';
 
 export const CODEPAGE = 'cp858';
 
-const MAX_QR_MODULE_SIZE = 6;
+// Dots per QR module, per paper. Capped by what fits the printable width.
+const QR_MODULE_DOTS = { '58mm': 4, '80mm': 5 };
 const QUIET_ZONE_MODULES = 4;
 
-function qrModuleSize(data, columns) {
-  const moduleCount = QRCode.create(data, { errorCorrectionLevel: 'M' }).modules.size;
-  const maxSize = Math.floor((columns * 12) / (moduleCount + QUIET_ZONE_MODULES * 2));
-  return Math.max(1, Math.min(MAX_QR_MODULE_SIZE, maxSize));
+// The QR goes out as a raster image instead of the native GS ( k command:
+// cheap 58mm firmwares print a short native QR but drop one whose data needs
+// the high length byte (over 255 bytes, which every AFIP URL does).
+function qrImage(data, ctx) {
+  const { modules } = QRCode.create(data, { errorCorrectionLevel: 'M' });
+  const total = modules.size + QUIET_ZONE_MODULES * 2;
+  const fit = Math.floor((ctx.cols * 12) / total);
+  const dots = Math.max(1, Math.min(QR_MODULE_DOTS[ctx.paper] || QR_MODULE_DOTS['80mm'], fit));
+  const size = Math.ceil((total * dots) / 8) * 8;
+  const pixels = new Uint8ClampedArray(size * size * 4).fill(255);
+  for (let row = 0; row < modules.size; row++) {
+    for (let col = 0; col < modules.size; col++) {
+      if (!modules.get(row, col)) continue;
+      const top = (row + QUIET_ZONE_MODULES) * dots;
+      const left = (col + QUIET_ZONE_MODULES) * dots;
+      for (let y = top; y < top + dots; y++) {
+        const start = (y * size + left) * 4;
+        for (let i = start; i < start + dots * 4; i += 4) {
+          pixels[i] = 0;
+          pixels[i + 1] = 0;
+          pixels[i + 2] = 0;
+        }
+      }
+    }
+  }
+  return { data: pixels, width: size, height: size };
 }
 
 /**
@@ -45,9 +68,10 @@ export function encodeDocument(blocks, ctx, { cutter, logo = null, codepage = CO
         .width(1)
         .height(1);
     } else if (block.type === 'qr') {
+      const image = qrImage(block.data, ctx);
       encoder
         .align('center')
-        .qrcode(block.data, { model: 2, size: qrModuleSize(block.data, ctx.cols), errorlevel: 'm' })
+        .image(image, image.width, image.height, 'threshold')
         .align('left')
         .newline();
     } else if (block.type === 'logo') {
