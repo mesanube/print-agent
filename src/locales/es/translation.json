@@ -49,7 +49,6 @@
     "loadingTemplates": "Cargando plantillas...",
     "selectATemplate": "Seleccione una plantilla...",
     "noTemplatesFound": "No se encontraron plantillas",
-    "savePrinter": "Guardar Impresora",
     "selectLogoSize": "Seleccionar Tamaño",
     "logoSizeSmall": "Pequeño",
     "logoSizeMedium": "Mediano",
@@ -68,14 +67,11 @@
     "export": "Exportar como Imagen",
     "cutter": "Corte automático",
     "enableCutter": "Activar corte automático",
-    "cutterHint": "Apáguelo si la impresora corta dos veces cada ticket. Si su driver no corta solo, apagarlo deja el ticket sin cortar: pruebe con la página de prueba.",
     "cutterEnabledStatus": "Corte automático activado",
     "cutterDisabledStatus": "Corte automático desactivado",
     "widthAdjust": "Ajuste de ancho",
-    "widthAdjustHint": "Si el ticket se corta por la derecha, imprima la página de calibración y cargue el número donde se corta.",
     "printCalibrationPage": "Imprimir página de calibración",
     "printerTransport": "Transporte (modo Compatibilidad)",
-    "printerTransportHint": "Pruebe con la página de prueba antes de dejar una impresora en ESC/POS (RAW).",
     "transportGdi": "Driver del sistema",
     "transportRaw": "ESC/POS (RAW)",
     "capturing": "Capturando plantilla...",
@@ -83,8 +79,11 @@
     "printMode": "Modo de impresión",
     "printModeText": "Texto (rápido)",
     "printModeCompat": "Compatibilidad (imagen)",
-    "printModeHint": "Texto usa las letras de la impresora y es el más rápido. Si el ticket sale mal, imprima la prueba en texto y, si no se lee, cambie a Compatibilidad.",
-    "printTextTestPage": "Imprimir prueba en texto"
+    "printTextTestPage": "Imprimir prueba en texto",
+    "printerCodepage": "Tabla de caracteres",
+    "codepageCp858": "CP858",
+    "codepageCp850": "CP850",
+    "codepageCp437": "CP437"
   },
   "ipcMessages": {
     "printersError": "Error al cargar las impresoras disponibles",
@@ -99,6 +98,7 @@
     "exportSuccess": "Imagen guardada con éxito.",
     "exportError": "Error al guardar la imagen.",
     "textTestSuccess": "Prueba en texto enviada correctamente",
-    "textTestError": "Error al imprimir la prueba en texto: {{message}}"
+    "textTestError": "Error al imprimir la prueba en texto: {{message}}",
+    "invalidPrinterCodepage": "Tabla de caracteres no válida"
   }
 }

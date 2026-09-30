@@ -203,6 +203,21 @@ export function getPrintMode(printerName) {
   return PRINT_MODES.includes(mode) ? mode : 'text';
 }
 
+export const PRINTER_CODEPAGES = ['cp858', 'cp850', 'cp437'];
+
+export function setPrinterCodepage(printerName, codepage) {
+  const codepages = store.get('printerCodepages', {});
+  codepages[printerName] = codepage;
+  store.set('printerCodepages', codepages);
+  console.log('[Settings] Printer codepage saved:', printerName, '->', codepage);
+}
+
+export function getPrinterCodepage(printerName) {
+  const codepages = store.get('printerCodepages', {});
+  const codepage = printerName ? codepages[printerName] : null;
+  return PRINTER_CODEPAGES.includes(codepage) ? codepage : 'cp858';
+}
+
 export function getPrinterTransports() {
   return store.get('printerTransports', {});
 }

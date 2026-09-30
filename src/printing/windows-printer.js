@@ -4,7 +4,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { BrowserWindow } from 'electron';
-import { getSelectedPrinter, getPrinterCutter, getPrinterTransport, getPrintMode, getPaperWidth } from '../core/store.js';
+import { getSelectedPrinter, getPrinterCutter, getPrinterTransport, getPrintMode, getPaperWidth, getPrinterCodepage } from '../core/store.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { requireSystemPrinter } from './printer-manager.js';
 import { getPaperGeometry } from './paper-geometry.js';
@@ -355,7 +355,11 @@ async function printText(build, docData, printerName = null, timing = null) {
   // Only documents that print the logo wait for it (comandas never do).
   const logoBlock = blocks.find((b) => b.type === 'logo');
   const logo = logoBlock ? await logoCache.get(logoBlock.url, getPaperGeometry(selectedPrinter).dots) : null;
-  const bytes = encodeDocument(blocks, ctx, { cutter: getPrinterCutter(selectedPrinter), logo });
+  const bytes = encodeDocument(blocks, ctx, {
+    cutter: getPrinterCutter(selectedPrinter),
+    logo,
+    codepage: getPrinterCodepage(selectedPrinter),
+  });
   timing?.mark('armado');
   console.log(`[Windows Print] Printing to ${selectedPrinter} as ESC/POS text`);
   writeRaw(selectedPrinter, bytes, 'Mesanube ticket');

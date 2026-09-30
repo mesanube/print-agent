@@ -13,6 +13,7 @@ import {
   getLogoSize, setLogoSize,
   getPrinterCutter, setPrinterCutter,
   getPrintMode, setPrintMode, PRINT_MODES,
+  getPrinterCodepage, setPrinterCodepage, PRINTER_CODEPAGES,
   getRegisterId, setRegisterId,
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
@@ -146,6 +147,7 @@ export function createApi(options) {
       logoSize: getLogoSize(),
       cutterEnabled: getPrinterCutter(printerName),
       printMode: getPrintMode(printerName),
+      printerCodepage: getPrinterCodepage(printerName),
     });
   });
 
@@ -183,6 +185,9 @@ export function createApi(options) {
       if (PRINT_MODES.includes(body.printMode)) {
         setPrintMode(printerName, body.printMode);
       }
+      if (printerName && PRINTER_CODEPAGES.includes(body.printerCodepage)) {
+        setPrinterCodepage(printerName, body.printerCodepage);
+      }
       return c.json({
         success: true,
         settings: {
@@ -196,6 +201,7 @@ export function createApi(options) {
           logoSize: getLogoSize(),
           cutterEnabled: getPrinterCutter(printerName),
           printMode: getPrintMode(printerName),
+          printerCodepage: getPrinterCodepage(printerName),
         },
       });
     } catch (error) {

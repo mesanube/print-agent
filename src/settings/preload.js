@@ -60,6 +60,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Print Mode API (per-printer: 'text' or 'compat')
   getPrintMode: (printerName) => ipcRenderer.invoke('get-print-mode', printerName),
   setPrintMode: (printerName, mode) => ipcRenderer.invoke('set-print-mode', printerName, mode),
+  getPrinterCodepage: (printerName) => ipcRenderer.invoke('get-printer-codepage', printerName),
+  setPrinterCodepage: (printerName, codepage) => ipcRenderer.invoke('set-printer-codepage', printerName, codepage),
   printTextTestPage: (printerName) => ipcRenderer.invoke('print-text-test-page', printerName),
 
   // Printer Transport API

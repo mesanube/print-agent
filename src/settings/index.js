@@ -18,7 +18,8 @@ import {
     setPaperWidth, getPaperWidth,
     setWidthAdjust, getWidthAdjust,
     setPrinterTransport, getPrinterTransport,
-    setPrintMode, getPrintMode, PRINT_MODES
+    setPrintMode, getPrintMode, PRINT_MODES,
+    setPrinterCodepage, getPrinterCodepage, PRINTER_CODEPAGES
 } from '../core/store.js';
 import { getAbsoluteLogoPath, getLogoAsBase64 } from '../shared/file-helpers.js';
 
@@ -467,6 +468,19 @@ export function setupSettingsIPC() {
     setPrintMode(printerName, mode);
     return { success: true };
   });
+  ipcMain.handle('get-printer-codepage', (event, printerName) => {
+    return { codepage: getPrinterCodepage(printerName) };
+  });
+  ipcMain.handle('set-printer-codepage', (event, printerName, codepage) => {
+    if (!printerName) {
+      return { success: false, message: i18next.t('ipcMessages.noPrinterForTest') };
+    }
+    if (!PRINTER_CODEPAGES.includes(codepage)) {
+      return { success: false, message: i18next.t('ipcMessages.invalidPrinterCodepage') };
+    }
+    setPrinterCodepage(printerName, codepage);
+    return { success: true };
+  });
   ipcMain.handle('print-text-test-page', async (event, printerName) => {
     try {
       await printTextTestPage(printerName || getSelectedPrinter());
@@ -531,5 +545,7 @@ export function cleanupSettingsIPC() {
   ipcMain.removeHandler('set-printer-transport');
   ipcMain.removeHandler('get-print-mode');
   ipcMain.removeHandler('set-print-mode');
+  ipcMain.removeHandler('get-printer-codepage');
+  ipcMain.removeHandler('set-printer-codepage');
   ipcMain.removeHandler('print-text-test-page');
 }

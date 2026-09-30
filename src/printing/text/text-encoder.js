@@ -1,35 +1,35 @@
 import ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder';
+import QRCode from 'qrcode';
 
-// Fixed code page CP858 (KTD10): Latin-1 accents, ñ/Ñ and the euro sign; `$`
-// is plain ASCII and prints in any table. If a printer shows garbage on the
-// text test page, this is the constant to revisit (per printer, later).
 export const CODEPAGE = 'cp858';
 
-// AFIP QR module size in dots, per paper. The AFIP URL encodes to a ~57-module
-// QR, so 6 dots (~342 dots) fits 58mm and 8 dots (~456 dots) fits 80mm with a
-// margin, keeping the QR as large as the paper allows: small QRs were the
-// main scan-failure cause in the field
-// (docs/solutions/ui-bugs/thermal-printer-paper-width-and-qr-readability.md).
-const QR_SIZE = { '58mm': 6, '80mm': 8 };
+const MAX_QR_MODULE_SIZE = 6;
+const QUIET_ZONE_MODULES = 4;
+
+function qrModuleSize(data, columns) {
+  const moduleCount = QRCode.create(data, { errorCorrectionLevel: 'M' }).modules.size;
+  const maxSize = Math.floor((columns * 12) / (moduleCount + QUIET_ZONE_MODULES * 2));
+  return Math.max(1, Math.min(MAX_QR_MODULE_SIZE, maxSize));
+}
 
 /**
  * Encodes document blocks (documents.js) to ESC/POS bytes.
  * @param {Array<object>} blocks
  * @param {{cols:number, paper:string}} ctx - layoutContext() of the document
- * @param {{cutter:boolean, logo?: {data:Uint8Array|Buffer, width:number, height:number}|null}} options
+ * @param {{cutter:boolean, logo?: {data:Uint8Array|Buffer, width:number, height:number}|null, codepage?:string}} options
  *   `cutter` comes from the per-printer setting (KTD2); the encoder never cuts
  *   on its own. `logo` is the already-rasterized logo (logo-cache.js), or null
  *   to print without one.
  * @returns {Uint8Array}
  */
-export function encodeDocument(blocks, ctx, { cutter, logo = null } = {}) {
+export function encodeDocument(blocks, ctx, { cutter, logo = null, codepage = CODEPAGE } = {}) {
   const encoder = new ReceiptPrinterEncoder({
     language: 'esc-pos',
     columns: ctx.cols,
     imageMode: 'raster',
     newline: '\n',
   });
-  encoder.initialize().codepage(CODEPAGE);
+  encoder.initialize().codepage(codepage);
 
   for (const block of blocks) {
     if (block.type === 'text') {
@@ -47,7 +47,7 @@ export function encodeDocument(blocks, ctx, { cutter, logo = null } = {}) {
     } else if (block.type === 'qr') {
       encoder
         .align('center')
-        .qrcode(block.data, { model: 2, size: QR_SIZE[ctx.paper] || QR_SIZE['80mm'], errorlevel: 'm' })
+        .qrcode(block.data, { model: 2, size: qrModuleSize(block.data, ctx.cols), errorlevel: 'm' })
         .align('left')
         .newline();
     } else if (block.type === 'logo') {

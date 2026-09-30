@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import QRCode from 'qrcode';
 import { layoutContext, buildReceipt, buildInvoice, buildOrder, buildOrderUpdate, buildCashClose, buildDayZ } from './documents.js';
 import { encodeDocument } from './text-encoder.js';
 import { buildTextTestPage } from './test-page.js';
@@ -11,7 +12,7 @@ const invoiceData = {
   razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisor: '30712345678',
   docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '123', inicioActividadEmisor: '01/01/2020',
   condicionIvaEmisorLabel: 'Responsable Inscripto', tipoComprobanteLabel: 'Factura B', tipoComprobante: 6,
-  razonSocialReceptor: 'Consumidor Final', tipoDocReceptorLabel: 'DNI', docReceptorFormatted: '0',
+  razonSocialReceptor: 'Consumidor Final', tipoDocReceptorLabel: 'DNI', tipoDocReceptor: 99, docReceptor: '0', docReceptorFormatted: '0',
   condicionIvaReceptorLabel: 'Consumidor Final', puntoVenta: 3, numeroComprobante: 1234, impIVA: 100,
   otrosImpuestosNacionales: 0, cae: '74123456789012', vencimientoCAEFormatted: '10/10/2026',
   fechaEmision: '2026-09-29', total: 40000,
@@ -126,6 +127,40 @@ describe('buildCashClose / buildDayZ', () => {
   });
 });
 
+const qrModuleSize = (bytes) => {
+  const output = Array.from(bytes);
+  const index = output.findIndex((byte, i) =>
+    byte === 0x1d && output[i + 1] === 0x28 && output[i + 2] === 0x6b &&
+    output[i + 5] === 0x31 && output[i + 6] === 0x43,
+  );
+  return output[index + 7];
+};
+
+describe('text-mode QR sizing', () => {
+  const invoiceBlocks = buildInvoice({ order: { items: items(1), orderTotal: 1000 }, invoiceData }, layoutContext());
+  const invoiceQr = invoiceBlocks.find((block) => block.type === 'qr').data;
+  const invoiceModules = QRCode.create(invoiceQr, { errorCorrectionLevel: 'M' }).modules.size;
+
+  it('fits an AFIP QR with a quiet zone on both paper widths', () => {
+    expect(invoiceModules).toBe(69);
+    for (const [paper, expectedSize, dots] of [['58mm', 4, 384], ['80mm', 6, 576]]) {
+      const ctx = layoutContext({ paper });
+      const bytes = encodeDocument([{ type: 'qr', data: invoiceQr }], ctx);
+      const size = qrModuleSize(bytes);
+      expect(size).toBe(expectedSize);
+      expect(size * (invoiceModules + 8)).toBeLessThanOrEqual(dots);
+    }
+  });
+
+  it('keeps the short text-test QR at six dots on either paper width', () => {
+    for (const paper of ['58mm', '80mm']) {
+      const ctx = layoutContext({ paper });
+      const bytes = encodeDocument([{ type: 'qr', data: 'https://www.mesanube.com' }], ctx);
+      expect(qrModuleSize(bytes)).toBe(6);
+    }
+  });
+});
+
 describe('encodeDocument', () => {
   const ctx = layoutContext();
   const bytesOf = (text, options = { cutter: false }) => Array.from(encodeDocument([{ type: 'text', text }], ctx, options));
@@ -138,6 +173,12 @@ describe('encodeDocument', () => {
     expect(containsSeq(bytes, [0xa5, 0x6f, 0x71])).toBe(true); // "Ñoq"
     expect(containsSeq(bytes, [0xa4, 0x61, 0x6e, 0x64, 0xa3])).toBe(true); // "ñandú"
     expect(containsSeq(bytes, [0x24, 0x20, 0x31])).toBe(true); // "$ 1"
+    expect(containsSeq(bytes, [0xa0, 0x20, 0x82, 0x20, 0xa1, 0x20, 0xa2, 0x20, 0xa3])).toBe(true);
+  });
+
+  it('uses the selected codepage for accent bytes', () => {
+    const bytes = bytesOf('á é í ó ú ñ Ñ', { cutter: false, codepage: 'cp437' });
+    expect(containsSeq(bytes, [0x1b, 0x74, 0x00])).toBe(true);
     expect(containsSeq(bytes, [0xa0, 0x20, 0x82, 0x20, 0xa1, 0x20, 0xa2, 0x20, 0xa3])).toBe(true);
   });
 

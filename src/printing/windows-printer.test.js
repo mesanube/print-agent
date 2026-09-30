@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // is mocked; the render window throws a sentinel so a test can tell that the
 // image path was taken without driving a real offscreen window.
 const modes = {};
+const codepages = {};
 const BrowserWindow = vi.fn(() => {
   throw new Error('render-window-created');
 });
@@ -15,6 +16,7 @@ vi.mock('../core/store.js', () => ({
   getPrinterCutter: vi.fn((name) => cutters[name] ?? true),
   getPrinterTransport: vi.fn(() => 'gdi'),
   getPrintMode: vi.fn((name) => modes[name] || 'text'),
+  getPrinterCodepage: vi.fn((name) => codepages[name] || 'cp858'),
   getPaperWidth: vi.fn(() => '80mm'),
 }));
 const generateHtmlFromTemplate = vi.fn(async () => '<html></html>');
@@ -39,6 +41,7 @@ const receipt = { order: { items: [{ name: 'Cafe', price: 1500, quantity: 1 }], 
 
 beforeEach(() => {
   for (const k of Object.keys(modes)) delete modes[k];
+  for (const k of Object.keys(codepages)) delete codepages[k];
   for (const k of Object.keys(cutters)) delete cutters[k];
   vi.clearAllMocks();
 });
@@ -116,5 +119,12 @@ describe('text path details', () => {
   it('a receipt with a location logo asks the logo cache for it', async () => {
     await printReceipt({ ...receipt, restaurant: { name: 'Bar', receiptSettings: { logoUrl: 'https://cdn/logo.png' } } }, 'Caja');
     expect(logoGet).toHaveBeenCalledWith('https://cdn/logo.png', 576);
+  });
+
+  it('encodes text using the selected printer codepage', async () => {
+    codepages.Caja = 'cp437';
+    await printReceipt(receipt, 'Caja');
+    const bytes = Array.from(writeRaw.mock.calls[0][1]);
+    expect(bytes.some((byte, index) => byte === 0x1b && bytes[index + 1] === 0x74 && bytes[index + 2] === 0)).toBe(true);
   });
 });

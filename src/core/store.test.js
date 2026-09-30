@@ -15,7 +15,7 @@ vi.mock('electron-store', () => ({
   },
 }));
 
-const { getPrinterCutter, setPrinterCutter, getPrintMode, setPrintMode } = await import('./store.js');
+const { getPrinterCutter, setPrinterCutter, getPrintMode, setPrintMode, getPrinterCodepage, setPrinterCodepage } = await import('./store.js');
 
 beforeEach(() => {
   memory.clear();
@@ -62,3 +62,16 @@ describe('print mode setting (KD2)', () => {
     expect(getPrintMode('Fiscal')).toBe('text');
   });
 });
+
+describe('printer codepage setting', () => {
+  it('defaults each printer to CP858', () => {
+    expect(getPrinterCodepage('Caja')).toBe('cp858');
+  });
+
+  it('stores the codepage per printer', () => {
+    setPrinterCodepage('Caja', 'cp850');
+    expect(getPrinterCodepage('Caja')).toBe('cp850');
+    expect(getPrinterCodepage('Fiscal')).toBe('cp858');
+  });
+});
+
