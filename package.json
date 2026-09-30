@@ -1,6 +1,6 @@
 {
   "name": "mesanube-print-agent",
-  "version": "1.5.5",
+  "version": "1.6.0",
   "description": "Agente de impresión para Mesanube POS",
   "main": "src/main.js",
   "type": "module",
@@ -14,7 +14,8 @@
     "build:linux": "electron-builder --linux",
     "dist": "electron-builder --publish=never",
     "dist:mac": "electron-builder --mac --publish=never",
-    "dist:linux": "electron-builder --linux --publish=never"
+    "dist:linux": "electron-builder --linux --publish=never",
+    "test": "vitest run"
   },
   "keywords": [
     "electron",
@@ -43,7 +44,8 @@
     "electron": "^28.0.0",
     "electron-builder": "^24.9.0",
     "eslint": "^8.57.1",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "vitest": "^3.2.4"
   },
   "build": {
     "appId": "com.mesanube.print-agent",

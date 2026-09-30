@@ -8,7 +8,6 @@
     <!-- html2canvas - DISABLED (not needed without export function)
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; background-color: #f5f5f5; padding: 20px; user-select: none; }
@@ -18,7 +17,6 @@
         h1 { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 20px; text-align: center; grid-column: 1 / -1; }
         .section { margin-bottom: 20px; }
         .settings-column .section > label, .preview-column > label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; color: #555; margin-bottom: 8px; }
-        .section > label .material-icons { font-size: 20px; }
         .current-printer { background: #e8f4fd; border: 1px solid #b3d9f7; border-radius: 6px; padding: 12px; font-size: 14px; color: #0066cc; }
         .custom-select-wrapper { position: relative; }
         .custom-select-trigger { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; background: white; cursor: pointer; transition: border-color 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -51,7 +49,7 @@
         .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #007AFF; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .loading-text { font-size: 16px; color: #555; font-weight: 500; }
-        .status-message { margin-top: 16px; padding: 12px; border-radius: 6px; font-size: 14px; text-align: center; }
+        .status-message { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); width: calc(100vw - 32px); max-width: 480px; margin: 0; padding: 12px; border-radius: 6px; font-size: 14px; text-align: center; z-index: 1100; }
         .status-success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
         .status-error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
         .status-message.hidden { display: none; }
@@ -64,22 +62,12 @@
         .toggle-switch input[type="checkbox"]:checked { background: #007AFF; }
         .toggle-switch input[type="checkbox"]::before { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: transform 0.3s; }
         .toggle-switch input[type="checkbox"]:checked::before { transform: translateX(20px); }
+        .toggle-switch input[type="checkbox"]:disabled { opacity: 0.4; cursor: not-allowed; }
+        /* Short helper under a section's control (mirrors the width-adjust hint). */
         .logo-size-controls, .qrcode-size-controls { margin-top: 8px; }
         .logo-size-slider, .qrcode-size-slider { width: 100%; margin: 10px 0; }
         .logo-size-labels, .qrcode-size-labels { display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-top: 4px; }
-        .preview-info { margin-top: 8px; font-size: 12px; color: #666; text-align: center; }
         .app-version { font-size: 12px; color: #666; margin-top: -4px; margin-bottom: 12px; user-select: text; }
-
-        /* Collapsible section (width-adjust / calibration), styled like the
-           disclosure box the client app uses for "Recetas" on the ingredient
-           detail page: a clickable header with a chevron that flips, content
-           hidden until expanded. */
-        .collapsible-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
-        .collapsible-header label { margin-bottom: 0; }
-        .collapsible-chevron { color: #555; transition: transform 0.2s; }
-        .collapsible.open .collapsible-chevron { transform: rotate(180deg); }
-        .collapsible-content { display: none; margin-top: 12px; }
-        .collapsible.open .collapsible-content { display: block; }
 
         /* Number input styled like .custom-select-trigger so the width-adjust
            field matches the select boxes elsewhere on this page. */
@@ -123,17 +111,41 @@
             </div>
             
             <div class="section">
-                <label for="printer-select"><i class="material-icons">print</i><span data-i18n="settingsWindow.selectPrinter"></span></label>
+                <label for="printer-select"><span data-i18n="settingsWindow.selectPrinter"></span></label>
                 <div id="printer-select-wrapper" class="custom-select-wrapper disabled">
-                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.loadingPrinters"></span><i class="material-icons">arrow_drop_down</i></div>
+                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.loadingPrinters"></span></div>
                     <div class="custom-options"></div>
                 </div>
             </div>
 
-            <div class="section">
-                <label><i class="material-icons">cable</i><span data-i18n="settingsWindow.printerTransport"></span></label>
+            <div class="section" id="print-mode-section">
+                <label><span data-i18n="settingsWindow.printMode"></span></label>
+                <div id="print-mode-wrapper" class="custom-select-wrapper disabled">
+                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.printModeText"></span></div>
+                    <div class="custom-options">
+                        <div class="custom-option selected" data-value="text"><span data-i18n="settingsWindow.printModeText"></span></div>
+                        <div class="custom-option" data-value="compat"><span data-i18n="settingsWindow.printModeCompat"></span></div>
+                    </div>
+                </div>
+                <button type="button" id="print-text-test-btn" class="btn-secondary" disabled><span data-i18n="settingsWindow.printTextTestPage"></span></button>
+            </div>
+
+            <div class="section" id="printer-codepage-section">
+                <label><span data-i18n="settingsWindow.printerCodepage"></span></label>
+                <div id="printer-codepage-wrapper" class="custom-select-wrapper disabled">
+                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.codepageCp858"></span></div>
+                    <div class="custom-options">
+                        <div class="custom-option selected" data-value="cp858"><span data-i18n="settingsWindow.codepageCp858"></span></div>
+                        <div class="custom-option" data-value="cp850"><span data-i18n="settingsWindow.codepageCp850"></span></div>
+                        <div class="custom-option" data-value="cp437"><span data-i18n="settingsWindow.codepageCp437"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="printer-transport-section" style="display: none;">
+                <label><span data-i18n="settingsWindow.printerTransport"></span></label>
                 <div id="printer-transport-wrapper" class="custom-select-wrapper disabled">
-                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.transportGdi"></span><i class="material-icons">arrow_drop_down</i></div>
+                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.transportGdi"></span></div>
                     <div class="custom-options">
                         <div class="custom-option selected" data-value="gdi"><span data-i18n="settingsWindow.transportGdi"></span></div>
                         <div class="custom-option" data-value="raw"><span data-i18n="settingsWindow.transportRaw"></span></div>
@@ -142,9 +154,9 @@
             </div>
 
             <div class="section">
-                <label><i class="material-icons">straighten</i><span>Ancho del papel</span></label>
+                <label><span>Ancho del papel</span></label>
                 <div id="paper-width-wrapper" class="custom-select-wrapper disabled">
-                    <div class="custom-select-trigger"><span>80mm</span><i class="material-icons">arrow_drop_down</i></div>
+                    <div class="custom-select-trigger"><span>80mm</span></div>
                     <div class="custom-options">
                         <div class="custom-option selected" data-value="80mm">80mm</div>
                         <div class="custom-option" data-value="58mm">58mm</div>
@@ -152,22 +164,22 @@
                 </div>
             </div>
 
+            <div class="section" id="cutter-section">
+                <label><span data-i18n="settingsWindow.cutter">Corte automático</span></label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="cutter-toggle" checked disabled>
+                    <label for="cutter-toggle" data-i18n="settingsWindow.enableCutter">Activar corte automático</label>
+                </div>
+            </div>
+
             <div class="section">
-                <div class="collapsible" id="width-adjust-collapsible">
-                    <div class="collapsible-header" id="width-adjust-header" role="button" tabindex="0" aria-expanded="false" aria-controls="width-adjust-content">
-                        <label><i class="material-icons">tune</i><span data-i18n="settingsWindow.widthAdjust"></span></label>
-                        <i class="material-icons collapsible-chevron">expand_more</i>
+                <label><span data-i18n="settingsWindow.widthAdjust"></span></label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <div class="number-input-wrapper">
+                        <input type="number" id="width-adjust-input" min="50" max="150" step="1" value="100" disabled />
+                        <span>%</span>
                     </div>
-                    <div class="collapsible-content" id="width-adjust-content">
-                        <p style="font-size: 12px; margin: 4px 0 8px;" data-i18n="settingsWindow.widthAdjustHint"></p>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <div class="number-input-wrapper">
-                                <input type="number" id="width-adjust-input" min="50" max="150" step="1" value="100" disabled />
-                                <span>%</span>
-                            </div>
-                            <button type="button" id="print-calibration-btn" class="btn-secondary" data-i18n="settingsWindow.printCalibrationPage"><i class="material-icons">print</i><span data-i18n="settingsWindow.printCalibrationPage"></span></button>
-                        </div>
-                    </div>
+                    <button type="button" id="print-calibration-btn" class="btn-secondary" data-i18n="settingsWindow.printCalibrationPage"><span data-i18n="settingsWindow.printCalibrationPage"></span></button>
                 </div>
             </div>
 
@@ -229,14 +241,6 @@
                 </div>
             </div>
             -->
-<!-- 
-            <div class="section" id="cutter-section">
-                <label><i class="material-icons">content_cut</i><span data-i18n="settingsWindow.cutter">Guillotina</span></label>
-                <div class="toggle-switch">
-                    <input type="checkbox" id="cutter-toggle" checked>
-                    <label for="cutter-toggle" data-i18n="settingsWindow.enableCutter">Enable Automatic Cut</label>
-                </div>
-            </div> -->
 
             <!-- LANGUAGE PICKER - DISABLED
             <div class="section">
@@ -252,24 +256,15 @@
             -->
 
             <div class="button-group">
-                <button id="save-printer-btn" class="btn-primary" data-i18n="settingsWindow.savePrinter" disabled><i class="material-icons">save</i><span data-i18n="settingsWindow.savePrinter"></span></button>
-                <!-- TEMPLATE SAVE BUTTON - DISABLED
-                <button id="save-template-btn" class="btn-primary" data-i18n="settingsWindow.saveTemplate" disabled><i class="material-icons">save</i><span data-i18n="settingsWindow.saveTemplate"></span></button>
-                -->
-                <button id="test-template-btn" class="btn-success" data-i18n="settingsWindow.testPrint" disabled><i class="material-icons">print</i><span data-i18n="settingsWindow.testPrint"></span></button>
-                <!-- TEST IMAGE AND EXPORT BUTTONS - DISABLED
-                <button id="test-image-btn" class="btn-secondary" data-i18n="settingsWindow.testImagePrint" disabled><i class="material-icons">image</i><span data-i18n="settingsWindow.testImagePrint"></span></button>
-                <button id="export-btn" class="btn-secondary" data-i18n="settingsWindow.export" disabled><i class="material-icons">save_alt</i><span data-i18n="settingsWindow.export">Export as Image</span></button>
-                -->
-                <button id="cancel-btn" class="btn-cancel" data-i18n="settingsWindow.cancel"><i class="material-icons">close</i><span data-i18n="settingsWindow.cancel"></span></button>
-             </div>
+                <button id="test-template-btn" class="btn-success" data-i18n="settingsWindow.testPrint" disabled><span data-i18n="settingsWindow.testPrint"></span></button>
+                <button id="cancel-btn" class="btn-cancel" data-i18n="settingsWindow.cancel"><span data-i18n="settingsWindow.cancel"></span></button>
+            </div>
             <div id="status-message" class="status-message hidden"></div>
         </div>
 
         <div class="preview-column">
-            <label><i class="material-icons">visibility</i><span data-i18n="settingsWindow.templatePreview"></span></label>
+            <label><span data-i18n="settingsWindow.templatePreview"></span></label>
             <iframe id="template-preview" src="about:blank"></iframe>
-            <div class="preview-info" id="preview-info">Content height: <span id="content-height">0px</span></div>
         </div>
     </div>
 
@@ -279,13 +274,16 @@
         let currentPrinters = [];
         let selectedPrinterName = null;
         let selectedTemplateName = 'modern-receipt.html'; // FIXED: Using modern-receipt.html as default
-        let logoConfig = { logoPath: null, logoBase64: null, logoSize: 50, logoEnabled: true, qrCodeEnabled: true, qrCodeSize: 60, cutterEnabled: true };
-        // Paper width + width adjust are per-printer (see refreshPaperSettings), so
-        // they live outside logoConfig and are re-fetched whenever the selected
-        // printer changes rather than loaded once at startup.
+        let logoConfig = { logoPath: null, logoBase64: null, logoSize: 50, logoEnabled: true, qrCodeEnabled: true, qrCodeSize: 60 };
+        // Paper width + width adjust + automatic cut are per-printer (see
+        // refreshPaperSettings/refreshCutter), so they live outside logoConfig
+        // and are re-fetched whenever the selected printer changes rather than
+        // loaded once at startup.
         let paperSettings = { paperWidth: '80mm', widthAdjust: 100 };
+        let cutterEnabled = true;
         const loadingOverlay = document.getElementById('loading-overlay');
         const statusMessage = document.getElementById('status-message');
+        let statusTimeout = null;
         const cancelBtn = document.getElementById('cancel-btn');
         const previewFrame = document.getElementById('template-preview');
         const logoPreview = document.getElementById('logo-preview');
@@ -301,17 +299,18 @@
         const logoSizeValue = document.getElementById('logo-size-value');
         // const qrcodeSizeSlider = document.getElementById('qrcode-size-slider'); // DISABLED
         // const qrcodeSizeValue = document.getElementById('qrcode-size-value'); // DISABLED
-        const contentHeightSpan = document.getElementById('content-height');
-        const previewInfo = document.getElementById('preview-info');
         // Buttons
         const testTemplateBtn = document.getElementById('test-template-btn');
         // const testImageBtn = document.getElementById('test-image-btn'); // DISABLED
         // const exportBtn = document.getElementById('export-btn'); // DISABLED
         // Printer elements
         const currentPrinterDiv = document.getElementById('current-printer');
-        const savePrinterBtn = document.getElementById('save-printer-btn');
         const printerSelectWrapper = document.getElementById('printer-select-wrapper');
         const printerTransportWrapper = document.getElementById('printer-transport-wrapper');
+        const printerTransportSection = document.getElementById('printer-transport-section');
+        const printModeWrapper = document.getElementById('print-mode-wrapper');
+        const printerCodepageWrapper = document.getElementById('printer-codepage-wrapper');
+        const printTextTestBtn = document.getElementById('print-text-test-btn');
 
         // Template elements - DISABLED
         // const saveTemplateBtn = document.getElementById('save-template-btn');
@@ -349,10 +348,11 @@
         }
 
         function showStatus(message, type = 'success') {
+            clearTimeout(statusTimeout);
             statusMessage.textContent = message;
             statusMessage.className = `status-message status-${type}`;
             statusMessage.classList.remove('hidden');
-            setTimeout(() => { statusMessage.classList.add('hidden'); }, 5000);
+            statusTimeout = setTimeout(() => { statusMessage.classList.add('hidden'); }, 3000);
         }
 
         function setPaperWidthDropdown(width) {
@@ -402,6 +402,67 @@
             widthAdjustInput.value = paperSettings.widthAdjust || 100;
         }
 
+        function setPrintModeDropdown(mode) {
+            if (!printModeWrapper) return;
+            const selected = printModeWrapper.querySelector(`.custom-option[data-value="${mode}"]`);
+            const trigger = printModeWrapper.querySelector('.custom-select-trigger span');
+            if (trigger && selected) trigger.textContent = selected.textContent;
+            printModeWrapper.querySelectorAll('.custom-option').forEach((opt) => {
+                opt.classList.toggle('selected', opt.dataset.value === mode);
+            });
+            // The gdi/raw transport only applies to the image path (compat).
+            if (printerTransportSection) printerTransportSection.style.display = mode === 'compat' ? '' : 'none';
+        }
+
+        // Print mode is per-printer (KD2), same refresh cycle as the transport.
+        async function refreshPrintMode() {
+            if (!printModeWrapper) return;
+            if (!selectedPrinterName) {
+                printModeWrapper.classList.add('disabled');
+                printTextTestBtn.disabled = true;
+                return;
+            }
+            printModeWrapper.classList.remove('disabled');
+            printTextTestBtn.disabled = false;
+            const result = await window.electronAPI.getPrintMode(selectedPrinterName);
+            setPrintModeDropdown(result.mode || 'text');
+        }
+
+        function setPrinterCodepageDropdown(codepage) {
+            if (!printerCodepageWrapper) return;
+            const selected = printerCodepageWrapper.querySelector(`.custom-option[data-value="${codepage}"]`);
+            const trigger = printerCodepageWrapper.querySelector('.custom-select-trigger span');
+            if (trigger && selected) trigger.textContent = selected.textContent;
+            printerCodepageWrapper.querySelectorAll('.custom-option').forEach((opt) => {
+                opt.classList.toggle('selected', opt.dataset.value === codepage);
+            });
+        }
+
+        async function refreshPrinterCodepage() {
+            if (!printerCodepageWrapper) return;
+            if (!selectedPrinterName) {
+                printerCodepageWrapper.classList.add('disabled');
+                return;
+            }
+            printerCodepageWrapper.classList.remove('disabled');
+            const result = await window.electronAPI.getPrinterCodepage(selectedPrinterName);
+            setPrinterCodepageDropdown(result.codepage || 'cp858');
+        }
+
+        // Automatic cut is per-printer too (KD6), same refresh cycle as the
+        // paper settings above: disabled until a printer is chosen.
+        async function refreshCutter() {
+            if (!cutterToggle) return;
+            if (!selectedPrinterName) {
+                cutterToggle.disabled = true;
+                return;
+            }
+            cutterToggle.disabled = false;
+            const result = await window.electronAPI.getCutterEnabled(selectedPrinterName);
+            cutterEnabled = result.cutterEnabled !== false;
+            cutterToggle.checked = cutterEnabled;
+        }
+
         // --- Logo Management Functions ---
         function updateLogoPreview() {
             if (logoConfig.logoBase64) {
@@ -420,7 +481,6 @@
 
             logoToggle.checked = logoConfig.logoEnabled;
             // qrcodeToggle.checked = logoConfig.qrCodeEnabled; // DISABLED
-            cutterToggle.checked = logoConfig.cutterEnabled;
             // qrcodeSizeSlider.value = logoConfig.qrCodeSize; // DISABLED
             // qrcodeSizeValue.textContent = `${logoConfig.qrCodeSize}%`; // DISABLED
             if (selectedTemplateName) {
@@ -480,7 +540,10 @@
             testTemplateBtn.disabled = buttonsDisabled;
             // testImageBtn.disabled = buttonsDisabled; // DISABLED
             refreshPrinterTransport();
+            refreshPrinterCodepage();
             refreshPaperSettings();
+            refreshCutter();
+            refreshPrintMode();
         }
         
         // --- Template Logic ---
@@ -667,14 +730,38 @@
                 });
             }
 
-            initCustomSelect('printer-select-wrapper', (option) => {
-                printerSelectWrapper.querySelector('.custom-select-trigger span').textContent = option.textContent;
+            // Printer selection saves immediately (no save button). On
+            // failure the previous selection is restored so the on-screen
+            // choice never lies about what persisted.
+            initCustomSelect('printer-select-wrapper', async (option) => {
+                const previous = selectedPrinterName;
                 selectedPrinterName = option.dataset.value;
-                savePrinterBtn.disabled = false;
+                printerSelectWrapper.querySelector('.custom-select-trigger span').textContent = option.textContent;
                 testTemplateBtn.disabled = false;
-                // testImageBtn.disabled = false; // DISABLED
                 refreshPrinterTransport();
+                refreshPrinterCodepage();
                 refreshPaperSettings();
+                refreshCutter();
+                refreshPrintMode();
+                const result = await window.electronAPI.selectPrinter(selectedPrinterName);
+                if (result.success) {
+                    updateCurrentPrinter(selectedPrinterName);
+                    showStatus(result.message, 'success');
+                } else {
+                    selectedPrinterName = previous;
+                    const fallback = currentPrinters.find((p) => p.name === previous);
+                    if (previous && fallback) {
+                        printerSelectWrapper.querySelector('.custom-select-trigger span').textContent = `${fallback.displayName}${fallback.isDefault ? ' (predeterminada)' : ''}`;
+                        printerSelectWrapper.querySelector(`.custom-option[data-value="${previous}"]`)?.classList.add('selected');
+                    }
+                    testTemplateBtn.disabled = !previous;
+                    refreshPrinterTransport();
+                    refreshPrinterCodepage();
+                    refreshPaperSettings();
+                    refreshCutter();
+                    refreshPrintMode();
+                    showStatus(result.message || i18next.t('ipcMessages.selectError'), 'error');
+                }
             });
             initCustomSelect('printer-transport-wrapper', async (option) => {
                 if (!selectedPrinterName) return;
@@ -707,22 +794,6 @@
                 });
             });
 
-            // Width-adjust collapsible (hint, input and calibration button
-            // live inside it, collapsed by default).
-            const widthAdjustCollapsible = document.getElementById('width-adjust-collapsible');
-            const widthAdjustHeader = document.getElementById('width-adjust-header');
-            const toggleWidthAdjustCollapsible = () => {
-                const isOpen = widthAdjustCollapsible.classList.toggle('open');
-                widthAdjustHeader.setAttribute('aria-expanded', String(isOpen));
-            };
-            widthAdjustHeader.addEventListener('click', toggleWidthAdjustCollapsible);
-            widthAdjustHeader.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    toggleWidthAdjustCollapsible();
-                }
-            });
-
             // Paper width custom dropdown
             initCustomSelect('paper-width-wrapper', async (option) => {
                 if (!selectedPrinterName) return;
@@ -739,13 +810,61 @@
                 }
             });
 
-            // cutterToggle.addEventListener('change', async () => {
-            //     const enabled = cutterToggle.checked;
-            //     const result = await window.electronAPI.setCutterEnabled(enabled);
-            //     if (result.success) {
-            //         logoConfig.cutterEnabled = enabled;
-            //     }
-            // });
+            initCustomSelect('print-mode-wrapper', async (option) => {
+                if (!selectedPrinterName) return;
+                const mode = option.dataset.value;
+                const previous = mode === 'text' ? 'compat' : 'text';
+                const result = await window.electronAPI.setPrintMode(selectedPrinterName, mode);
+                if (result.success) {
+                    setPrintModeDropdown(mode);
+                    showStatus(`${i18next.t('settingsWindow.printMode')}: ${option.textContent}`, 'success');
+                } else {
+                    setPrintModeDropdown(previous);
+                    showStatus(result.message || 'Failed to update print mode', 'error');
+                }
+            });
+
+            initCustomSelect('printer-codepage-wrapper', async (option) => {
+                if (!selectedPrinterName) return;
+                const codepage = option.dataset.value;
+                const previous = printerCodepageWrapper.querySelector('.custom-option.selected')?.dataset.value || 'cp858';
+                const result = await window.electronAPI.setPrinterCodepage(selectedPrinterName, codepage);
+                if (result.success) {
+                    setPrinterCodepageDropdown(codepage);
+                    showStatus(`${i18next.t('settingsWindow.printerCodepage')}: ${option.textContent}`, 'success');
+                } else {
+                    setPrinterCodepageDropdown(previous);
+                    showStatus(result.message || 'Failed to update the character table', 'error');
+                }
+            });
+
+            printTextTestBtn.addEventListener('click', async () => {
+                if (!selectedPrinterName) return;
+                printTextTestBtn.disabled = true;
+                try {
+                    const result = await window.electronAPI.printTextTestPage(selectedPrinterName);
+                    showStatus(result.message, result.success ? 'success' : 'error');
+                } finally {
+                    printTextTestBtn.disabled = false;
+                }
+            });
+
+            // Automatic cut toggle (per printer, KD6)
+            cutterToggle.addEventListener('change', async () => {
+                if (!selectedPrinterName) {
+                    cutterToggle.checked = cutterEnabled;
+                    return;
+                }
+                const enabled = cutterToggle.checked;
+                const result = await window.electronAPI.setCutterEnabled(selectedPrinterName, enabled);
+                if (result.success) {
+                    cutterEnabled = enabled;
+                    showStatus(enabled ? i18next.t('settingsWindow.cutterEnabledStatus') : i18next.t('settingsWindow.cutterDisabledStatus'), 'success');
+                } else {
+                    cutterToggle.checked = cutterEnabled;
+                    showStatus(result.message || 'Failed to update the automatic cut', 'error');
+                }
+            });
             // selectLogoBtn.addEventListener('click', async () => {
             //     const result = await window.electronAPI.selectLogoFile();
             //     if (result.success) {
@@ -835,18 +954,7 @@
         });
 
         cancelBtn.addEventListener('click', () => window.electronAPI.closeSettings());
-        
-        savePrinterBtn.addEventListener('click', async () => {
-            if (!selectedPrinterName) return;
-            savePrinterBtn.disabled = true;
-            const result = await window.electronAPI.selectPrinter(selectedPrinterName);
-            if (result.success) {
-                updateCurrentPrinter(selectedPrinterName); 
-                showStatus(result.message, 'success');
-            } else { 
-                showStatus(result.message, 'error'); 
-            }
-        });
+
         // TEMPLATE SAVE BUTTON - DISABLED
         /*
         saveTemplateBtn.addEventListener('click', async () => {

@@ -4,13 +4,17 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { BrowserWindow } from 'electron';
-import { getSelectedPrinter, getCutterEnabled, getPrinterTransport } from '../core/store.js';
+import { getSelectedPrinter, getPrinterCutter, getPrinterTransport, getPrintMode, getPaperWidth, getPrinterCodepage } from '../core/store.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
-import { getSystemPrinters } from './printer-manager.js';
+import { requireSystemPrinter } from './printer-manager.js';
 import { getPaperGeometry } from './paper-geometry.js';
 import { renderCalibrationHtml } from './calibration-page.js';
 import { printBitmap as printBitmapGdi } from './transports/gdi-transport.js';
-import { printBitmap as printBitmapRaw } from './transports/raw-transport.js';
+import { printBitmap as printBitmapRaw, writeRaw } from './transports/raw-transport.js';
+import { layoutContext, buildReceipt, buildInvoice, buildOrder, buildOrderUpdate, buildCashClose, buildDayZ } from './text/documents.js';
+import { encodeDocument } from './text/text-encoder.js';
+import { buildTextTestPage } from './text/test-page.js';
+import { logoCache } from './text/logo-cache.js';
 
 const TRANSPORTS = { gdi: printBitmapGdi, raw: printBitmapRaw };
 
@@ -49,6 +53,9 @@ function getOrCreatePrintWindow(printerName = null) {
       webPreferences: {
         offscreen: true, // Render offscreen for better performance and no flashing
         nodeIntegration: false,
+        // A hidden window throttles requestAnimationFrame by default, which
+        // would stall the render-ready signal (waitForRenderer).
+        backgroundThrottling: false,
         zoomFactor: geometry.zoomFactor,
       }
     });
@@ -69,6 +76,33 @@ export function destroyPrintWindow() {
   }
 }
 
+// Render readiness is signalled by the renderer itself (KTD3): fonts loaded,
+// every <img> decoded (logo, QR as image) and two animation frames so layout
+// and paint have run. The cap only fires if a signal never arrives on some
+// machine; in the normal case it is never reached.
+const RENDER_SIGNAL_CAP_MS = 1000;
+const NEXT_FRAME_SCRIPT = `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))`;
+const CONTENT_READY_SCRIPT = `(async () => {
+  await document.fonts.ready;
+  await Promise.all(Array.from(document.images).map((img) => img.decode().catch(() => {})));
+  return ${NEXT_FRAME_SCRIPT};
+})()`;
+
+async function waitForRenderer(printWindow, script, label) {
+  let capTimer;
+  const cap = new Promise((resolve) => {
+    capTimer = setTimeout(() => {
+      console.warn(`[Windows Print] Render signal "${label}" did not arrive within ${RENDER_SIGNAL_CAP_MS}ms, continuing`);
+      resolve(false);
+    }, RENDER_SIGNAL_CAP_MS);
+  });
+  try {
+    await Promise.race([printWindow.webContents.executeJavaScript(script), cap]);
+  } finally {
+    clearTimeout(capTimer);
+  }
+}
+
 /**
  * Renders HTML content in the shared browser window and captures it as a PNG.
  * Reuses a single BrowserWindow across all print jobs to prevent resource leaks.
@@ -82,8 +116,9 @@ async function captureHtmlOnDemand(htmlContent, printerName = null) {
 
     await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
-    // Wait longer for content to render and settle (increased for QR code SVG rendering)
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Wait for the content to actually be painted (fonts, decoded logo, QR)
+    // instead of a fixed delay (R1).
+    await waitForRenderer(printWindow, CONTENT_READY_SCRIPT, 'content');
 
     // Get the actual height of the content
     // IMPORTANT: Since zoomFactor is 2.0, we need to account for this in measurements
@@ -169,8 +204,8 @@ async function captureHtmlOnDemand(htmlContent, printerName = null) {
     // exactly one point per pixel.
     printWindow.setContentSize(geometry.dots, finalHeight);
 
-    // Wait a bit longer for window resize and re-render to complete (increased for QR code)
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Wait for the first frame painted at the new size.
+    await waitForRenderer(printWindow, NEXT_FRAME_SCRIPT, 'resize');
 
     // Verify the window actually resized
     const [actualWidth, actualHeight] = printWindow.getContentSize();
@@ -204,10 +239,10 @@ async function captureHtmlOnDemand(htmlContent, printerName = null) {
 // inherit a rejected promise.
 let printQueue = Promise.resolve();
 
-async function printHtml(htmlContent, printerName = null) {
+async function printHtml(htmlContent, printerName = null, timing = null) {
   const myTurn = printQueue.then(
-    () => doPrintHtml(htmlContent, printerName),
-    () => doPrintHtml(htmlContent, printerName),
+    () => doPrintHtml(htmlContent, printerName, timing),
+    () => doPrintHtml(htmlContent, printerName, timing),
   );
   printQueue = myTurn.catch(() => {});
   return myTurn;
@@ -237,7 +272,7 @@ async function dumpPngForReview(imageBuffer, printerName) {
   return file;
 }
 
-async function doPrintHtml(htmlContent, printerName = null) {
+async function doPrintHtml(htmlContent, printerName = null, timing = null) {
   if (DRY_RUN) {
     console.log(`[Print DEBUG] PRINT_AGENT_DRY_RUN=1 — capturing PNG for printer "${printerName || '(none)'}" instead of printing.`);
     const image = await captureHtmlOnDemand(htmlContent, printerName);
@@ -253,56 +288,122 @@ async function doPrintHtml(htmlContent, printerName = null) {
     throw new Error('No printer selected or specified.');
   }
 
-  // Validate printer exists on system
-  const systemPrinters = await getSystemPrinters();
-  const printerExists = systemPrinters.find(p => p.name === selectedPrinter);
-
-  if (!printerExists) {
-    const availablePrinters = systemPrinters.map(p => p.name).join(', ');
-    throw new Error(`Printer "${selectedPrinter}" not found. Available printers: ${availablePrinters}`);
-  }
+  // Validate printer exists on system (cached list, one fresh retry)
+  await requireSystemPrinter(selectedPrinter);
 
   const transportMode = getPrinterTransport(selectedPrinter);
   const printBitmap = TRANSPORTS[transportMode] || printBitmapGdi;
 
   console.log(`[Windows Print] Printing to ${selectedPrinter} (${printerName ? 'specified' : 'default'}) via ${transportMode}`);
 
+  timing?.setMode('image');
   const image = await captureHtmlOnDemand(htmlContent, selectedPrinter);
   const geometry = getPaperGeometry(selectedPrinter);
+  timing?.mark('armado');
 
   await printBitmap({
     printerName: selectedPrinter,
     image,
     geometry,
-    cutter: getCutterEnabled(), // Use stored setting
+    // The single place that decides the cut, per printer (KTD2): no transport
+    // adds its own cut command, and no path cuts on its own.
+    cutter: getPrinterCutter(selectedPrinter),
   });
+  timing?.mark('envio');
 }
 
-export async function printReceipt(data, printerName = null) {
+// --- Text path (ESC/POS text, KD1) -----------------------------------------
+// Builds the document as text blocks and writes the encoded bytes straight to
+// the Windows queue. No offscreen window and no image capture, so it does not
+// need the render queue above either.
+
+async function dumpTextForReview(blocks, printerName) {
+  await fs.mkdir(DEBUG_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const safePrinter = (printerName || 'noprinter').replace(/[^A-Za-z0-9._-]+/g, '_');
+  const file = path.join(DEBUG_DIR, `receipt-${stamp}-${safePrinter}-${randomUUID().slice(0, 6)}.txt`);
+  const preview = blocks.map((b) => {
+    if (b.type === 'text') return b.text;
+    if (b.type === 'qr') return `[QR ${b.data}]`;
+    if (b.type === 'logo') return `[LOGO ${b.url}]`;
+    return '';
+  }).join('\n');
+  await fs.writeFile(file, preview, 'utf-8');
+  console.log(`[Print DEBUG] Text preview written to ${file}`);
+  return { dryRun: true, file };
+}
+
+/**
+ * Prints one document through the text path.
+ * @param {Function} build - a documents.js builder
+ * @param {object} docData - the builder's input ({ order, restaurant, ... })
+ */
+async function printText(build, docData, printerName = null, timing = null) {
+  const selectedPrinter = printerName || getSelectedPrinter();
+  if (!selectedPrinter) {
+    throw new Error('No printer selected or specified.');
+  }
+  timing?.setMode('text');
+  const ctx = layoutContext({
+    paper: getPaperWidth(selectedPrinter),
+    settings: docData.restaurant?.receiptSettings,
+  });
+  const blocks = build(docData, ctx);
+  if (DRY_RUN) return dumpTextForReview(blocks, selectedPrinter);
+
+  await requireSystemPrinter(selectedPrinter);
+  // Only documents that print the logo wait for it (comandas never do).
+  const logoBlock = blocks.find((b) => b.type === 'logo');
+  const logo = logoBlock ? await logoCache.get(logoBlock.url, getPaperGeometry(selectedPrinter).dots) : null;
+  const bytes = encodeDocument(blocks, ctx, {
+    cutter: getPrinterCutter(selectedPrinter),
+    logo,
+    codepage: getPrinterCodepage(selectedPrinter),
+  });
+  timing?.mark('armado');
+  console.log(`[Windows Print] Printing to ${selectedPrinter} as ESC/POS text`);
+  writeRaw(selectedPrinter, bytes, 'Mesanube ticket');
+  timing?.mark('envio');
+}
+
+// Per-printer choice between the text path and the image path (KTD9).
+const usesText = (printerName) => getPrintMode(printerName || getSelectedPrinter()) === 'text';
+
+export async function printReceipt(data, printerName = null, timing = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
   const effectivePrinter = printerName || getSelectedPrinter();
+  if (usesText(effectivePrinter)) {
+    return printText(buildReceipt, { order: orderData, restaurant }, effectivePrinter, timing);
+  }
   const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-receipt.html', "receipt", undefined, effectivePrinter);
-  await printHtml(html, effectivePrinter);
+  await printHtml(html, effectivePrinter, timing);
 }
 
-export async function printOrder(data, printerName = null) {
+export async function printOrder(data, printerName = null, timing = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
   const effectivePrinter = printerName || getSelectedPrinter();
+  if (usesText(effectivePrinter)) {
+    return printText(buildOrder, { order: orderData, restaurant }, effectivePrinter, timing);
+  }
   // Use modern-order.html template for kitchen orders
   const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-order.html', "order", undefined, effectivePrinter);
-  return printHtml(html, effectivePrinter);
+  return printHtml(html, effectivePrinter, timing);
 }
 
+// Mirrored in text/documents.js buildOrderUpdate (text mode). Change both.
 /**
  * Print a kitchen UPDATE chit (Windows). Generates minimal inline HTML
  * matching the unix chit format and routes through the standard printHtml
  * pipeline. No template file in v1 — keeps the surface small.
  */
-export async function printOrderUpdate(data, printerName = null) {
+export async function printOrderUpdate(data, printerName = null, timing = null) {
   const order = data.order || {};
   const lines = Array.isArray(data.lines) ? data.lines : [];
+  if (usesText(printerName)) {
+    return printText(buildOrderUpdate, { order, lines, restaurant: data.restaurant }, printerName, timing);
+  }
   const now = new Date();
 
   const escapeHtml = (s) =>
@@ -460,29 +561,44 @@ export async function printOrderUpdate(data, printerName = null) {
 </body>
 </html>`;
 
-  return printHtml(html, printerName);
+  return printHtml(html, printerName, timing);
 }
 
-export async function printInvoice(data, printerName = null) {
+export async function printInvoice(data, printerName = null, timing = null) {
 
   const { restaurant, order, invoiceData } = data
   const effectivePrinter = printerName || getSelectedPrinter();
+  if (usesText(effectivePrinter)) {
+    return printText(buildInvoice, { order, restaurant, invoiceData }, effectivePrinter, timing);
+  }
 
   const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', "invoice", invoiceData, effectivePrinter);
 
-  await printHtml(html, effectivePrinter);
+  await printHtml(html, effectivePrinter, timing);
 }
 
-export async function printCashClose(data, printerName = null) {
+export async function printCashClose(data, printerName = null, timing = null) {
   const { restaurant, summary } = data;
+  if (usesText(printerName)) {
+    return printText(buildCashClose, { summary, restaurant }, printerName, timing);
+  }
   const html = await renderCashCloseHtml(summary, restaurant);
-  await printHtml(html, printerName);
+  await printHtml(html, printerName, timing);
 }
 
-export async function printDayZ(data, printerName = null) {
+export async function printDayZ(data, printerName = null, timing = null) {
   const { restaurant, summary } = data;
+  if (usesText(printerName)) {
+    return printText(buildDayZ, { summary, restaurant }, printerName, timing);
+  }
   const html = await renderDayZHtml(summary, restaurant);
-  await printHtml(html, printerName);
+  await printHtml(html, printerName, timing);
+}
+
+/** Text-mode test page for the selected (or given) printer (R11). */
+export async function printTextTestPage(printerName = null) {
+  const selected = printerName || getSelectedPrinter();
+  return printText(buildTextTestPage, { printerName: selected }, selected);
 }
 
 export async function printCalibrationPage(printerName = null) {

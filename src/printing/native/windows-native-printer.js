@@ -36,7 +36,9 @@ if (isWindows) {
  * @param {number} [options.threshold=180] - Image processing threshold.
  * @param {number} [options.edgeBoost=20] - Image processing edge boost.
  * @param {number} [options.dpi=0] - The printer DPI.
- * @param {boolean} [options.cutter=true] - Whether to use the paper cutter.
+ * @param {boolean} [options.cutter] - Whether to use the paper cutter. The
+ * caller decides (per printer, KTD2); this module must not default it to true,
+ * or an explicit false would depend on the spread order.
  */
 export function printReceiptNative(options) {
   if (!isWindows || !thermalPrinter) {
@@ -44,7 +46,6 @@ export function printReceiptNative(options) {
   }
   try {
     thermalPrinter.printReceipt({
-      cutter: true, // Default to true
       ...options,
     });
     console.log(`[Native Printer] ✓ Print job sent to "${options.printerName}".`);

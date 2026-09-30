@@ -49,7 +49,6 @@
     "loadingTemplates": "Cargando plantillas...",
     "selectATemplate": "Seleccione una plantilla...",
     "noTemplatesFound": "No se encontraron plantillas",
-    "savePrinter": "Guardar Impresora",
     "selectLogoSize": "Seleccionar Tamaño",
     "logoSizeSmall": "Pequeño",
     "logoSizeMedium": "Mediano",
@@ -66,17 +65,25 @@
     "enableQrCode": "Habilitar código QR en recibos",
     "qrCodeSize": "Tamaño del Código QR",
     "export": "Exportar como Imagen",
-    "cutter": "Cortador de Papel",
-    "enableCutter": "Activar Corte Automático",
+    "cutter": "Corte automático",
+    "enableCutter": "Activar corte automático",
+    "cutterEnabledStatus": "Corte automático activado",
+    "cutterDisabledStatus": "Corte automático desactivado",
     "widthAdjust": "Ajuste de ancho",
-    "widthAdjustHint": "Si el ticket se corta por la derecha, imprima la página de calibración y cargue el número donde se corta.",
     "printCalibrationPage": "Imprimir página de calibración",
-    "printerTransport": "Modo de impresión",
-    "printerTransportHint": "Pruebe con la página de prueba antes de dejar una impresora en ESC/POS (RAW).",
+    "printerTransport": "Transporte (modo Compatibilidad)",
     "transportGdi": "Driver del sistema",
     "transportRaw": "ESC/POS (RAW)",
     "capturing": "Capturando plantilla...",
-    "exporting": "Exportando imagen..."
+    "exporting": "Exportando imagen...",
+    "printMode": "Modo de impresión",
+    "printModeText": "Texto (rápido)",
+    "printModeCompat": "Compatibilidad (imagen)",
+    "printTextTestPage": "Imprimir prueba en texto",
+    "printerCodepage": "Tabla de caracteres",
+    "codepageCp858": "CP858",
+    "codepageCp850": "CP850",
+    "codepageCp437": "CP437"
   },
   "ipcMessages": {
     "printersError": "Error al cargar las impresoras disponibles",
@@ -89,6 +96,9 @@
     "calibrationSuccess": "Página de calibración enviada correctamente",
     "calibrationError": "Error al imprimir la página de calibración: {{message}}",
     "exportSuccess": "Imagen guardada con éxito.",
-    "exportError": "Error al guardar la imagen."
+    "exportError": "Error al guardar la imagen.",
+    "textTestSuccess": "Prueba en texto enviada correctamente",
+    "textTestError": "Error al imprimir la prueba en texto: {{message}}",
+    "invalidPrinterCodepage": "Tabla de caracteres no válida"
   }
 }

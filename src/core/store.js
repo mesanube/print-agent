@@ -98,15 +98,25 @@ export function getLogoEnabled() {
   return store.get('logoEnabled', true); // Default to enabled
 }
 
-// --- Cutter Management ---
+// --- Automatic cutter (per printer) ---
+// Some drivers cut at the end of the job on top of the agent's own cut
+// command, and the ticket comes out cut twice. Whether that happens is a
+// property of the printer's driver, so the toggle travels with the printer
+// (KD6), same map shape as printerTransports below. A missing entry is `true`:
+// the old global key was hidden in the UI, so it is `true` on every install,
+// which is exactly the new default (KTD1, no migration).
 
-export function setCutterEnabled(enabled) {
-  store.set('cutterEnabled', enabled);
-  console.log('[Settings] Cutter enabled:', enabled);
+export function setPrinterCutter(printerName, enabled) {
+  const cutters = store.get('printerCutters', {});
+  cutters[printerName] = !!enabled;
+  store.set('printerCutters', cutters);
+  console.log('[Settings] Printer cutter saved:', printerName, '->', !!enabled);
 }
 
-export function getCutterEnabled() {
-  return store.get('cutterEnabled', true); // Default to enabled
+export function getPrinterCutter(printerName) {
+  const cutters = store.get('printerCutters', {});
+  if (printerName && cutters[printerName] != null) return cutters[printerName];
+  return true;
 }
 
 // --- Paper Width Management ---
@@ -168,6 +178,44 @@ export function setPrinterTransport(printerName, mode) {
 export function getPrinterTransport(printerName) {
   const transports = store.get('printerTransports', {});
   return transports[printerName] || 'gdi';
+}
+
+// --- Print Mode Management ---
+// Per-printer: 'text' prints with the printer's own fonts as ESC/POS text
+// (fast, KD1); 'compat' keeps the HTML-to-image path with its transport
+// (gdi/raw) for printers that do not understand raw ESC/POS, such as some
+// fiscal printers with a swapped driver (R9). A missing entry is 'text': every
+// printer, new or existing, moves to text with the update (KD2, R10), with no
+// migration.
+
+export const PRINT_MODES = ['text', 'compat'];
+
+export function setPrintMode(printerName, mode) {
+  const modes = store.get('printModes', {});
+  modes[printerName] = mode;
+  store.set('printModes', modes);
+  console.log('[Settings] Print mode saved:', printerName, '->', mode);
+}
+
+export function getPrintMode(printerName) {
+  const modes = store.get('printModes', {});
+  const mode = printerName ? modes[printerName] : null;
+  return PRINT_MODES.includes(mode) ? mode : 'text';
+}
+
+export const PRINTER_CODEPAGES = ['cp858', 'cp850', 'cp437'];
+
+export function setPrinterCodepage(printerName, codepage) {
+  const codepages = store.get('printerCodepages', {});
+  codepages[printerName] = codepage;
+  store.set('printerCodepages', codepages);
+  console.log('[Settings] Printer codepage saved:', printerName, '->', codepage);
+}
+
+export function getPrinterCodepage(printerName) {
+  const codepages = store.get('printerCodepages', {});
+  const codepage = printerName ? codepages[printerName] : null;
+  return PRINTER_CODEPAGES.includes(codepage) ? codepage : 'cp858';
 }
 
 export function getPrinterTransports() {

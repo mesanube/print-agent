@@ -11,10 +11,13 @@ import {
   getQRCodeSize, setQRCodeSize,
   getLogoEnabled, setLogoEnabled,
   getLogoSize, setLogoSize,
-  getCutterEnabled, setCutterEnabled,
+  getPrinterCutter, setPrinterCutter,
+  getPrintMode, setPrintMode, PRINT_MODES,
+  getPrinterCodepage, setPrinterCodepage, PRINTER_CODEPAGES,
   getRegisterId, setRegisterId,
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
+import { startJobTiming } from '../printing/job-timing.js';
 import { printTestPage, printReceipt, printOrder, printOrderUpdate, printInvoice, printCashClose, printDayZ, printCalibrationPage } from '../printing/index.js';
 
 // In-memory idempotency cache for print jobs, keyed by a generic `jobId`.
@@ -49,6 +52,19 @@ const recordJob = (jobId) => {
     }
   }
 };
+
+// Runs one print job with its stage timings (R3). The timing line is logged
+// on success and on failure alike, so a failed job still shows how far it got.
+async function runTimedJob(job, print) {
+  const timing = startJobTiming(job);
+  try {
+    await print(timing);
+    timing.finish();
+  } catch (error) {
+    timing.finish({ error });
+    throw error;
+  }
+}
 
 export function createApi(options) {
   const { isDevelopmentMode, getCurrentPort, appVersion } = options;
@@ -115,9 +131,9 @@ export function createApi(options) {
   // GET /settings — full settings snapshot. Mirrors the IPC surface used by
   // the Electron settings window so an agent (or a remote troubleshooter) can
   // adjust paper width, QR, template, etc. without the desktop UI. (todo 014)
-  // paperWidth/widthAdjust are per-printer (like printerTransports); an
-  // optional `?printer=` query param targets a specific one, defaulting to
-  // the currently selected printer.
+  // paperWidth/widthAdjust/cutterEnabled/printMode are per-printer (like
+  // printerTransports); an optional `?printer=` query param targets a specific
+  // one, defaulting to the currently selected printer.
   app.get('/settings', (c) => {
     const printerName = c.req.query('printer') || getSelectedPrinter();
     return c.json({
@@ -129,15 +145,18 @@ export function createApi(options) {
       qrCodeSize: getQRCodeSize(),
       logoEnabled: getLogoEnabled(),
       logoSize: getLogoSize(),
-      cutterEnabled: getCutterEnabled(),
+      cutterEnabled: getPrinterCutter(printerName),
+      printMode: getPrintMode(printerName),
+      printerCodepage: getPrinterCodepage(printerName),
     });
   });
 
   // PUT /settings — partial update. Only documented keys are honored; unknown
   // keys are ignored. Each setter validates internally; bad values fall back
-  // to current value rather than throwing. `paperWidth`/`widthAdjust` apply to
-  // an optional `printer` field in the body, defaulting to the currently
-  // selected printer (per-printer settings, like printerTransports).
+  // to current value rather than throwing. `paperWidth`/`widthAdjust`/
+  // `cutterEnabled` apply to an optional `printer` field in the body,
+  // defaulting to the currently selected printer (per-printer settings, like
+  // printerTransports).
   app.put('/settings', async (c) => {
     try {
       const body = await c.req.json();
@@ -148,7 +167,6 @@ export function createApi(options) {
         qrCodeSize: setQRCodeSize,
         logoEnabled: setLogoEnabled,
         logoSize: setLogoSize,
-        cutterEnabled: setCutterEnabled,
       };
       for (const [key, setter] of Object.entries(updaters)) {
         if (Object.prototype.hasOwnProperty.call(body, key)) {
@@ -161,6 +179,15 @@ export function createApi(options) {
       if (Object.prototype.hasOwnProperty.call(body, 'widthAdjust')) {
         setWidthAdjust(printerName, body.widthAdjust);
       }
+      if (Object.prototype.hasOwnProperty.call(body, 'cutterEnabled')) {
+        setPrinterCutter(printerName, body.cutterEnabled);
+      }
+      if (PRINT_MODES.includes(body.printMode)) {
+        setPrintMode(printerName, body.printMode);
+      }
+      if (printerName && PRINTER_CODEPAGES.includes(body.printerCodepage)) {
+        setPrinterCodepage(printerName, body.printerCodepage);
+      }
       return c.json({
         success: true,
         settings: {
@@ -172,7 +199,9 @@ export function createApi(options) {
           qrCodeSize: getQRCodeSize(),
           logoEnabled: getLogoEnabled(),
           logoSize: getLogoSize(),
-          cutterEnabled: getCutterEnabled(),
+          cutterEnabled: getPrinterCutter(printerName),
+          printMode: getPrintMode(printerName),
+          printerCodepage: getPrinterCodepage(printerName),
         },
       });
     } catch (error) {
@@ -278,7 +307,7 @@ export function createApi(options) {
       // Reserve before awaiting; release on failure so a real retry can proceed.
       if (jobId) recordJob(jobId);
       try {
-        await printReceipt(requestData, printerName);
+        await runTimedJob('receipt', (timing) => printReceipt(requestData, printerName, timing));
       } catch (error) {
         if (jobId) printedJobs.delete(jobId);
         throw error;
@@ -294,7 +323,7 @@ export function createApi(options) {
       const requestData = await c.req.json();
       const { printerName } = requestData;
       // Do not log requestData: the cash-close payload is financially sensitive.
-      await printCashClose(requestData, printerName);
+      await runTimedJob('cash-close', (timing) => printCashClose(requestData, printerName, timing));
       return c.json({ success: true, message: 'Cash-close printed successfully' });
     } catch (error) {
       // Generic message; never echo summary values back to the caller.
@@ -307,7 +336,7 @@ export function createApi(options) {
       const requestData = await c.req.json();
       const { printerName } = requestData;
       // Do not log requestData: the day-Z payload is financially sensitive.
-      await printDayZ(requestData, printerName);
+      await runTimedJob('day-z', (timing) => printDayZ(requestData, printerName, timing));
       return c.json({ success: true, message: 'Day-Z printed successfully' });
     } catch (error) {
       return c.json({ error: 'Day-Z print failed' }, 500);
@@ -335,7 +364,7 @@ export function createApi(options) {
       // Release on failure so a legitimate retry can proceed.
       if (kitchenTicketId) recordJob(kitchenTicketId);
       try {
-        await printOrder(requestData, printerName);
+        await runTimedJob('order', (timing) => printOrder(requestData, printerName, timing));
       } catch (error) {
         if (kitchenTicketId) printedJobs.delete(kitchenTicketId);
         throw error;
@@ -365,7 +394,7 @@ export function createApi(options) {
       // Reserve before awaiting (see /print/order above for rationale).
       if (kitchenTicketId) recordJob(kitchenTicketId);
       try {
-        await printOrderUpdate(requestData, printerName);
+        await runTimedJob('order-update', (timing) => printOrderUpdate(requestData, printerName, timing));
       } catch (error) {
         if (kitchenTicketId) printedJobs.delete(kitchenTicketId);
         throw error;
@@ -393,7 +422,7 @@ export function createApi(options) {
 
       if (jobId) recordJob(jobId);
       try {
-        await printInvoice(requestData, printerName);
+        await runTimedJob('invoice', (timing) => printInvoice(requestData, printerName, timing));
       } catch (error) {
         if (jobId) printedJobs.delete(jobId);
         throw error;

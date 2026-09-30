@@ -47,14 +47,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setLogoEnabled: (enabled) => ipcRenderer.invoke('set-logo-enabled', enabled),
   setQRCodeSize: (size) => ipcRenderer.invoke('set-qrcode-size', size),
 
-  // Cutter API
-  setCutterEnabled: (enabled) => ipcRenderer.invoke('set-cutter-enabled', enabled),
+  // Cutter API (per-printer, mirrors Paper Width API below)
+  getCutterEnabled: (printerName) => ipcRenderer.invoke('get-cutter-enabled', printerName),
+  setCutterEnabled: (printerName, enabled) => ipcRenderer.invoke('set-cutter-enabled', { printerName, enabled }),
 
   // Paper Width API (per-printer, mirrors Printer Transport API below)
   getPaperSettings: (printerName) => ipcRenderer.invoke('get-paper-settings', printerName),
   setPaperWidth: (printerName, width) => ipcRenderer.invoke('set-paper-width', printerName, width),
   setWidthAdjust: (printerName, percent) => ipcRenderer.invoke('set-width-adjust', printerName, percent),
   printCalibrationPage: () => ipcRenderer.invoke('print-calibration-page'),
+
+  // Print Mode API (per-printer: 'text' or 'compat')
+  getPrintMode: (printerName) => ipcRenderer.invoke('get-print-mode', printerName),
+  setPrintMode: (printerName, mode) => ipcRenderer.invoke('set-print-mode', printerName, mode),
+  getPrinterCodepage: (printerName) => ipcRenderer.invoke('get-printer-codepage', printerName),
+  setPrinterCodepage: (printerName, codepage) => ipcRenderer.invoke('set-printer-codepage', printerName, codepage),
+  printTextTestPage: (printerName) => ipcRenderer.invoke('print-text-test-page', printerName),
 
   // Printer Transport API
   getPrinterTransport: (printerName) => ipcRenderer.invoke('get-printer-transport', printerName),
