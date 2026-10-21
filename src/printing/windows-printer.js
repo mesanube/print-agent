@@ -14,7 +14,7 @@ import { printBitmap as printBitmapRaw, writeRaw } from './transports/raw-transp
 import { layoutContext, buildReceipt, buildInvoice, buildOrder, buildOrderUpdate, buildCashClose, buildDayZ } from './text/documents.js';
 import { encodeDocument } from './text/text-encoder.js';
 import { buildTextTestPage } from './text/test-page.js';
-import { logoCache } from './text/logo-cache.js';
+import { logoCache, logoMaxWidth } from './text/logo-cache.js';
 
 const TRANSPORTS = { gdi: printBitmapGdi, raw: printBitmapRaw };
 
@@ -354,7 +354,7 @@ async function printText(build, docData, printerName = null, timing = null) {
   await requireSystemPrinter(selectedPrinter);
   // Only documents that print the logo wait for it (comandas never do).
   const logoBlock = blocks.find((b) => b.type === 'logo');
-  const logo = logoBlock ? await logoCache.get(logoBlock.url, getPaperGeometry(selectedPrinter).dots) : null;
+  const logo = logoBlock ? await logoCache.get(logoBlock.url, logoMaxWidth(getPaperGeometry(selectedPrinter).dots)) : null;
   const bytes = encodeDocument(blocks, ctx, {
     cutter: getPrinterCutter(selectedPrinter),
     logo,
