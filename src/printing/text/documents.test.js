@@ -24,6 +24,64 @@ const afipPayload = (url) => JSON.parse(Buffer.from(new URL(url).searchParams.ge
 
 const items = (n) => Array.from({ length: n }, (_, i) => ({ name: `Plato ${i + 1}`, price: 1000, quantity: 1 }));
 
+// Shape of the credit-note payload the server builds (creditNotePrint.service.js).
+const creditNoteData = {
+  ...invoiceData,
+  tipoComprobanteLabel: 'NOTA DE CRÉDITO C', tipoComprobante: 13, puntoVenta: 2, numeroComprobante: 3,
+  isCreditNote: true,
+  comprobanteAsociado: { letra: 'C', puntoVenta: 2, numeroComprobante: 77 },
+  fechaHoraEmision: '2026-10-21T15:30:00.000Z',
+};
+
+describe('buildInvoice as a credit note', () => {
+  const order = { createdAt: '2026-10-18T12:00:00.000Z', items: items(2), orderTotal: 120000 };
+
+  it('Covers AE1: prints the credit note title, the associated invoice line, the items and the total', () => {
+    const blocks = buildInvoice({ order, restaurant: { name: 'Pentos' }, invoiceData: creditNoteData }, layoutContext());
+    expect(has(blocks, 'NOTA DE CRÉDITO C (COD 13)')).toBe(true);
+    expect(has(blocks, 'Fac. C: 0002-00000077')).toBe(true);
+    expect(has(blocks, 'Plato 1')).toBe(true);
+    expect(has(blocks, 'Plato 2')).toBe(true);
+    expect(has(blocks, '120.000,00')).toBe(true);
+    expect(has(blocks, 'CAE: 74123456789012')).toBe(true);
+  });
+
+  it('puts the associated invoice line right under the title', () => {
+    const blocks = buildInvoice({ order, invoiceData: creditNoteData }, layoutContext());
+    const title = indexOf(blocks, (b) => b.type === 'text' && b.text.includes('NOTA DE CRÉDITO C'));
+    const line = indexOf(blocks, (b) => b.type === 'text' && b.text.includes('Fac. C: 0002-00000077'));
+    expect(title).toBeGreaterThan(-1);
+    expect(line).toBe(title + 1);
+  });
+
+  it('Covers AE2: the date and time are those of the credit note, not the sale', () => {
+    const blocks = buildInvoice({ order, invoiceData: creditNoteData }, layoutContext());
+    const emission = new Date(creditNoteData.fechaHoraEmision);
+    expect(has(blocks, emission.toLocaleDateString())).toBe(true);
+    expect(has(blocks, emission.toLocaleTimeString())).toBe(true);
+    expect(has(blocks, new Date(order.createdAt).toLocaleDateString())).toBe(
+      new Date(order.createdAt).toLocaleDateString() === emission.toLocaleDateString()
+    );
+  });
+
+  it('leaves the factura untouched: no associated line and the date of the sale', () => {
+    const blocks = buildInvoice({ order, invoiceData }, layoutContext());
+    expect(has(blocks, 'Fac.')).toBe(false);
+    expect(has(blocks, new Date(order.createdAt).toLocaleDateString())).toBe(true);
+  });
+
+  it('prints the associated line only for a credit note, whatever else the payload carries', () => {
+    const factura = { ...invoiceData, comprobanteAsociado: creditNoteData.comprobanteAsociado, fechaHoraEmision: creditNoteData.fechaHoraEmision };
+    const blocks = buildInvoice({ order, invoiceData: factura }, layoutContext());
+    expect(has(blocks, 'Fac.')).toBe(false);
+    expect(has(blocks, new Date(order.createdAt).toLocaleDateString())).toBe(true);
+  });
+
+  it('throws a clear error, not a TypeError, when the invoice has no order', () => {
+    expect(() => buildInvoice({ order: null, invoiceData: creditNoteData }, layoutContext())).toThrow('Falta el pedido del comprobante');
+  });
+});
+
 describe('buildInvoice', () => {
   it('Covers AE2: a 40-item invoice keeps every item, then the total, the QR and the footer, in that order', () => {
     const ctx = layoutContext({ paper: '80mm', settings: { footerMessage: 'Gracias, vuelva pronto' } });

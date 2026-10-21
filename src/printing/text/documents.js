@@ -15,7 +15,7 @@
 // length prints whole (R8).
 
 import { columnsFor, twoColumns, wrap, center, rule } from './layout.js';
-import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS } from '../receipt-format.js';
+import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate } from '../receipt-format.js';
 import { generateAfipQRCodeData } from '../qrcode-generator.js';
 
 const money = (amount, { negative = false } = {}) =>
@@ -183,7 +183,9 @@ export function buildReceipt({ order = {}, restaurant = {} }, ctx) {
 }
 
 /** Factura AFIP (modern-invoice.html). The QR is emitted only with a CAE. */
-export function buildInvoice({ order = {}, restaurant = {}, invoiceData = {} }, ctx) {
+export function buildInvoice({ order, restaurant = {}, invoiceData = {} }, ctx) {
+  // A comprobante never prints without its order: no items, no total.
+  if (!order) throw new Error(MISSING_ORDER_MESSAGE);
   const inv = invoiceData || {};
   const doc = new DocBuilder(ctx);
   doc.logo();
@@ -194,11 +196,13 @@ export function buildInvoice({ order = {}, restaurant = {}, invoiceData = {} }, 
   doc.paragraph(`IIBB: ${inv.ingresosBrutosEmisor || ''}`);
   doc.paragraph(`Inicio de Actividades: ${inv.inicioActividadEmisor || ''}`);
   doc.paragraph(`IVA ${inv.condicionIvaEmisorLabel || ''}`);
-  doc.paragraph(`Fecha: ${fmtDate(order.createdAt)}`);
-  doc.paragraph(`Hora: ${fmtTime(order.createdAt)}`);
+  doc.paragraph(`Fecha: ${fmtDate(invoiceTicketDate(order, inv))}`);
+  doc.paragraph(`Hora: ${fmtTime(invoiceTicketDate(order, inv))}`);
   doc.paragraph(`Comprobante: ${String(inv.puntoVenta ?? '').padStart(4, '0')}-${String(inv.numeroComprobante ?? '').padStart(8, '0')}`);
   doc.rule();
   doc.centered(`${inv.tipoComprobanteLabel || ''} (COD ${inv.tipoComprobante ?? ''})`, { bold: true });
+  const associatedLine = associatedInvoiceLine(inv);
+  if (associatedLine) doc.centered(associatedLine);
   doc.centered(`A ${inv.razonSocialReceptor || ''} ${inv.tipoDocReceptorLabel || ''}: ${inv.docReceptorFormatted || ''}`);
   doc.centered(inv.condicionIvaReceptorLabel || '');
   doc.rule();
