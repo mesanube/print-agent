@@ -96,12 +96,16 @@ describe('createLogoCache', () => {
 });
 
 describe('logoMaxWidth', () => {
-  it('limits the logo to 20% of the paper width, in multiples of 8 dots', () => {
-    expect(logoMaxWidth(576)).toBe(112);
-    expect(logoMaxWidth(384)).toBe(72);
+  it('limits the logo to half the width on 80 mm paper, in multiples of 8 dots', () => {
+    expect(logoMaxWidth(576, '80mm')).toBe(288);
+    expect(logoMaxWidth(560, '80mm')).toBe(280);
+  });
+
+  it('lets the logo use the full width on 58 mm paper', () => {
+    expect(logoMaxWidth(384, '58mm')).toBe(384);
   });
 
   it('never goes below one raster byte', () => {
-    expect(logoMaxWidth(16)).toBe(8);
+    expect(logoMaxWidth(8, '80mm')).toBe(8);
   });
 });

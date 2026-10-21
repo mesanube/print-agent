@@ -354,7 +354,8 @@ async function printText(build, docData, printerName = null, timing = null) {
   await requireSystemPrinter(selectedPrinter);
   // Only documents that print the logo wait for it (comandas never do).
   const logoBlock = blocks.find((b) => b.type === 'logo');
-  const logo = logoBlock ? await logoCache.get(logoBlock.url, logoMaxWidth(getPaperGeometry(selectedPrinter).dots)) : null;
+  const geometry = logoBlock ? getPaperGeometry(selectedPrinter) : null;
+  const logo = logoBlock ? await logoCache.get(logoBlock.url, logoMaxWidth(geometry.dots, geometry.paper)) : null;
   const bytes = encodeDocument(blocks, ctx, {
     cutter: getPrinterCutter(selectedPrinter),
     logo,
