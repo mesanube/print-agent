@@ -98,6 +98,47 @@ describe('HTML and text renderers print the same information', () => {
     // The HTML path renders the AFIP QR as a PNG, which is slow under load.
   }, 20000);
 
+  it('nota de crédito', async () => {
+    const invoiceData = {
+      razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisor: '30712345678',
+      docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '901-123', inicioActividadEmisor: '01/01/2020',
+      condicionIvaEmisorLabel: 'Responsable Inscripto', tipoComprobanteLabel: 'NOTA DE CRÉDITO B', tipoComprobante: 8,
+      razonSocialReceptor: 'Consumidor Final', tipoDocReceptorLabel: 'DNI', docReceptorFormatted: '0',
+      condicionIvaReceptorLabel: 'IVA Consumidor Final', puntoVenta: 3, numeroComprobante: 5, impIVA: 4217.36,
+      otrosImpuestosNacionales: 0, cae: '74123456789012', vencimientoCAEFormatted: '10/10/2026',
+      fechaEmision: '2026-09-29', total: 24300,
+      isCreditNote: true,
+      comprobanteAsociado: { letra: 'B', puntoVenta: 3, numeroComprobante: 1234 },
+      fechaHoraEmision: '2026-10-21T15:30:00.000Z',
+    };
+    const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', 'invoice', invoiceData);
+    const blocks = buildInvoice({ order, restaurant, invoiceData }, ctx);
+    const emission = new Date(invoiceData.fechaHoraEmision);
+    expectInBoth(html, blocks, [
+      'NOTA DE CRÉDITO B (COD 8)', 'Fac. B: 0003-00001234', 'Comprobante: 0003-00000005',
+      'Milanesa napolitana', '$25.000,00', 'TOTAL', '$24.300,00', '74123456789012', '10/10/2026',
+      emission.toLocaleDateString(), emission.toLocaleTimeString(),
+    ]);
+  }, 20000);
+
+  it('factura: no associated invoice line', async () => {
+    const invoiceData = {
+      razonSocialEmisor: 'Pentos SRL', docEmisorFormatted: '30-71234567-8', tipoComprobanteLabel: 'Factura B', tipoComprobante: 6,
+      razonSocialReceptor: 'Consumidor Final', puntoVenta: 3, numeroComprobante: 1234, cae: '74123456789012',
+      vencimientoCAEFormatted: '10/10/2026', fechaEmision: '2026-09-29', total: 24300,
+    };
+    const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', 'invoice', invoiceData);
+    const blocks = buildInvoice({ order, restaurant, invoiceData }, ctx);
+    expect(htmlText(html)).not.toContain('Fac.');
+    expect(blocksText(blocks)).not.toContain('Fac.');
+    expect(htmlText(html)).not.toContain('{{');
+  }, 20000);
+
+  it('factura sin pedido: both renderers fail with the same clear message', async () => {
+    await expect(generateHtmlFromTemplate(null, restaurant, 'modern-invoice.html', 'invoice', {})).rejects.toThrow('Falta el pedido del comprobante');
+    expect(() => buildInvoice({ order: null, restaurant, invoiceData: {} }, ctx)).toThrow('Falta el pedido del comprobante');
+  });
+
   it('comanda', async () => {
     const orderWithCaller = { ...order, callButton: 'B12', deliveryName: 'Juan' };
     const html = await generateHtmlFromTemplate(orderWithCaller, restaurant, 'modern-order.html', 'order');

@@ -9,7 +9,7 @@ import {
   generateAfipQRCodePngHTML,
 } from './qrcode-generator.js';
 import { getLogoAsBase64 } from '../shared/file-helpers.js';
-import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS } from './receipt-format.js';
+import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate } from './receipt-format.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -372,6 +372,9 @@ export async function renderDayZHtml(summary, restaurantData) {
  * @returns {Promise<string>} The final HTML content as a string.
  */
 export async function generateHtmlFromTemplate(orderData, restaurantData, templateOverride = null, receiptType = "receipt", invoiceData, printerName = null) {
+  // A comprobante never prints without its order. Checked before the try below, which would
+  // otherwise bury this message under "Could not load or process template".
+  if (receiptType === 'invoice' && !orderData) throw new Error(MISSING_ORDER_MESSAGE);
 
   const templateName = templateOverride || getDefaultTemplate();
   // The path is now relative to this file inside /src/printing
@@ -453,7 +456,10 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
 
     // Replace placeholders
     // Use order's createdAt for invoice/receipt, or current time for kitchen orders
-    const orderDate = (receiptType === 'order') ? new Date() : new Date(orderData.createdAt);
+    // An invoice ticket stamps the credit note's emission moment when it is one (invoiceTicketDate).
+    const orderDate = (receiptType === 'order')
+      ? new Date()
+      : new Date(receiptType === 'invoice' ? invoiceTicketDate(orderData, invoiceData) : orderData.createdAt);
 
     // Build delivery info block — shown on all print types when order is delivery
     let deliveryInfoHtml = '';
@@ -546,6 +552,8 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
 
     // Replace invoice data placeholders (only if invoiceData is provided)
     if (invoiceData) {
+      const associatedLine = associatedInvoiceLine(invoiceData);
+      const associatedLineHtml = associatedLine ? `<p class="text-center">${escapeHtml(associatedLine)}</p>` : '';
       finalHtml = finalHtml
         .replace('{{invoiceData.razonSocialEmisor}}', escapeHtml(invoiceData.razonSocialEmisor))
         .replace('{{invoiceData.docEmisor}}', escapeHtml(invoiceData.docEmisorFormatted))
@@ -555,6 +563,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
         .replace('{{invoiceData.ingresosBrutosEmisor}}', escapeHtml(invoiceData.ingresosBrutosEmisor))
         .replace('{{invoiceData.inicioActividadEmisor}}', escapeHtml(invoiceData.inicioActividadEmisor))
         .replace('{{invoiceData.condicionIvaEmisor}}', escapeHtml(invoiceData.condicionIvaEmisorLabel))
+        .replace('{{invoiceData.associatedInvoiceLine}}', associatedLineHtml)
         .replace('{{invoiceData.tipoComprobanteLabel}}', escapeHtml(invoiceData.tipoComprobanteLabel))
         .replace('{{invoiceData.tipoComprobante}}', escapeHtml(invoiceData.tipoComprobante))
         .replace('{{invoiceData.razonSocialReceptor}}', escapeHtml(invoiceData.razonSocialReceptor))
