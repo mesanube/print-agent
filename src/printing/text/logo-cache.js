@@ -7,12 +7,15 @@
 
 const DOTS_MULTIPLE = 8;
 
-// The logo prints at most this share of the paper width; aspect ratio is kept.
-export const LOGO_WIDTH_RATIO = 0.2;
+// The logo prints at most this share of the paper width, aspect ratio kept:
+// half on 80 mm paper, the full width on the narrower 58 mm.
+export const LOGO_WIDTH_RATIO = 0.5;
+export const LOGO_WIDTH_RATIO_58MM = 1;
 
-/** Widest logo, in dots, for a paper that is `paperDots` wide (multiple of 8). */
-export function logoMaxWidth(paperDots) {
-  return Math.max(DOTS_MULTIPLE, Math.floor((paperDots * LOGO_WIDTH_RATIO) / DOTS_MULTIPLE) * DOTS_MULTIPLE);
+/** Widest logo, in dots, for a paper `paperDots` wide (multiple of 8). */
+export function logoMaxWidth(paperDots, paper) {
+  const ratio = paper === '58mm' ? LOGO_WIDTH_RATIO_58MM : LOGO_WIDTH_RATIO;
+  return Math.max(DOTS_MULTIPLE, Math.floor((paperDots * ratio) / DOTS_MULTIPLE) * DOTS_MULTIPLE);
 }
 
 // Electron's nativeImage decodes PNG/JPEG without extra dependencies. It is

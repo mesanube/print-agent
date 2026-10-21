@@ -26,7 +26,7 @@ vi.mock('./template-manager.js', () => ({
   renderDayZHtml: vi.fn(async () => '<html></html>'),
 }));
 vi.mock('./printer-manager.js', () => ({ requireSystemPrinter: vi.fn(async (name) => ({ name })) }));
-vi.mock('./paper-geometry.js', () => ({ getPaperGeometry: vi.fn(() => ({ dots: 576, cssWidth: 309, zoomFactor: 1.86 })) }));
+vi.mock('./paper-geometry.js', () => ({ getPaperGeometry: vi.fn(() => ({ dots: 576, cssWidth: 309, zoomFactor: 1.86, paper: '80mm' })) }));
 vi.mock('./calibration-page.js', () => ({ renderCalibrationHtml: vi.fn(() => '') }));
 const logoGet = vi.fn(async () => null);
 vi.mock('./text/logo-cache.js', async (importOriginal) => ({
@@ -121,7 +121,7 @@ describe('text path details', () => {
 
   it('a receipt with a location logo asks the logo cache for it', async () => {
     await printReceipt({ ...receipt, restaurant: { name: 'Bar', receiptSettings: { logoUrl: 'https://cdn/logo.png' } } }, 'Caja');
-    expect(logoGet).toHaveBeenCalledWith('https://cdn/logo.png', 112);
+    expect(logoGet).toHaveBeenCalledWith('https://cdn/logo.png', 288);
   });
 
   it('encodes text using the selected printer codepage', async () => {
