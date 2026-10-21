@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createLogoCache } from './logo-cache.js';
+import { createLogoCache, logoMaxWidth } from './logo-cache.js';
 
 const png = new Uint8Array([1, 2, 3]);
 const okFetch = () => vi.fn(async () => ({ ok: true, arrayBuffer: async () => png.buffer }));
@@ -92,5 +92,16 @@ describe('createLogoCache', () => {
     const cache = createLogoCache({ fetchImpl, decode: fakeDecode });
     expect(await cache.get('', 576)).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('logoMaxWidth', () => {
+  it('limits the logo to 20% of the paper width, in multiples of 8 dots', () => {
+    expect(logoMaxWidth(576)).toBe(112);
+    expect(logoMaxWidth(384)).toBe(72);
+  });
+
+  it('never goes below one raster byte', () => {
+    expect(logoMaxWidth(16)).toBe(8);
   });
 });

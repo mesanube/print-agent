@@ -7,6 +7,14 @@
 
 const DOTS_MULTIPLE = 8;
 
+// The logo prints at most this share of the paper width; aspect ratio is kept.
+export const LOGO_WIDTH_RATIO = 0.2;
+
+/** Widest logo, in dots, for a paper that is `paperDots` wide (multiple of 8). */
+export function logoMaxWidth(paperDots) {
+  return Math.max(DOTS_MULTIPLE, Math.floor((paperDots * LOGO_WIDTH_RATIO) / DOTS_MULTIPLE) * DOTS_MULTIPLE);
+}
+
 // Electron's nativeImage decodes PNG/JPEG without extra dependencies. It is
 // imported lazily so this module stays testable outside Electron.
 async function decodeWithNativeImage(buffer, maxWidth) {
