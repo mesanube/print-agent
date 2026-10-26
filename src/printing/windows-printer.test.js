@@ -26,7 +26,11 @@ vi.mock('./template-manager.js', () => ({
   renderDayZHtml: vi.fn(async () => '<html></html>'),
 }));
 vi.mock('./printer-manager.js', () => ({ requireSystemPrinter: vi.fn(async (name) => ({ name })) }));
-vi.mock('./paper-geometry.js', () => ({ getPaperGeometry: vi.fn(() => ({ dots: 576, cssWidth: 309, zoomFactor: 1.86, paper: '80mm' })) }));
+const ensurePrintableWidth = vi.fn(async () => {});
+vi.mock('./paper-geometry.js', () => ({
+  getPaperGeometry: vi.fn(() => ({ dots: 576, cssWidth: 309, zoomFactor: 1.86, paper: '80mm' })),
+  ensurePrintableWidth,
+}));
 vi.mock('./calibration-page.js', () => ({ renderCalibrationHtml: vi.fn(() => '') }));
 const logoGet = vi.fn(async () => null);
 vi.mock('./text/logo-cache.js', async (importOriginal) => ({

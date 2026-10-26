@@ -18,6 +18,8 @@ import {
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
 import { startJobTiming } from '../printing/job-timing.js';
+import { getPendingUpdateVersion } from '../core/auto-updater.js';
+import { runWithBudget, PRINT_TIMEOUT_CODE } from '../printing/worker/time-budget.js';
 import { printTestPage, printReceipt, printOrder, printOrderUpdate, printInvoice, printCashClose, printDayZ, printCalibrationPage } from '../printing/index.js';
 
 // In-memory idempotency cache for print jobs, keyed by a generic `jobId`.
@@ -53,12 +55,20 @@ const recordJob = (jobId) => {
   }
 };
 
+// A stuck job answers with the same 500 and body shape as any print failure,
+// plus a `code` the client uses to tell the user the printer did not respond
+// (KTD4). Other errors carry no code, exactly as before.
+const printErrorBody = (body, error) =>
+  (error?.code === PRINT_TIMEOUT_CODE ? { ...body, code: PRINT_TIMEOUT_CODE } : body);
+
 // Runs one print job with its stage timings (R3). The timing line is logged
 // on success and on failure alike, so a failed job still shows how far it got.
 async function runTimedJob(job, print) {
   const timing = startJobTiming(job);
   try {
-    await print(timing);
+    // One time budget for the whole request: queue wait, capture, printer
+    // calls and write all draw from it (KTD2).
+    await runWithBudget(() => print(timing));
     timing.finish();
   } catch (error) {
     timing.finish({ error });
@@ -103,6 +113,8 @@ export function createApi(options) {
       printWindow: 'ready', // Legacy compatibility
       uptime: process.uptime(),
       version: appVersion || null,
+      // Version of an update already downloaded and waiting for the agent to be closed with Salir.
+      updatePending: getPendingUpdateVersion(),
       selectedPrinter: getSelectedPrinter(),
       printerExplicitlySelected: getPrinterExplicitlySelected(),
       registerId: getRegisterId(),
@@ -268,10 +280,10 @@ export function createApi(options) {
     }
     try {
       const requestData = await c.req.json().catch(() => ({}));
-      await printTestPage(requestData.restaurant);
+      await runWithBudget(() => printTestPage(requestData.restaurant));
       return c.json({ success: true, message: 'Test page sent to printer' });
     } catch (error) {
-      return c.json({ error: 'Print test failed', details: error.message }, 500);
+      return c.json(printErrorBody({ error: 'Print test failed', details: error.message }, error), 500);
     }
   });
 
@@ -281,10 +293,10 @@ export function createApi(options) {
   app.post('/print/calibration', async (c) => {
     try {
       const requestData = await c.req.json().catch(() => ({}));
-      await printCalibrationPage(requestData.printerName);
+      await runWithBudget(() => printCalibrationPage(requestData.printerName));
       return c.json({ success: true, message: 'Calibration page sent to printer' });
     } catch (error) {
-      return c.json({ error: 'Print calibration failed', details: error.message }, 500);
+      return c.json(printErrorBody({ error: 'Print calibration failed', details: error.message }, error), 500);
     }
   });
 
@@ -314,7 +326,7 @@ export function createApi(options) {
       }
       return c.json({ success: true, message: 'Receipt printed successfully' });
     } catch (error) {
-      return c.json({ error: 'Print receipt failed', details: error.message }, 500);
+      return c.json(printErrorBody({ error: 'Print receipt failed', details: error.message }, error), 500);
     }
   });
 
@@ -327,7 +339,7 @@ export function createApi(options) {
       return c.json({ success: true, message: 'Cash-close printed successfully' });
     } catch (error) {
       // Generic message; never echo summary values back to the caller.
-      return c.json({ error: 'Cash-close print failed' }, 500);
+      return c.json(printErrorBody({ error: 'Cash-close print failed' }, error), 500);
     }
   });
 
@@ -339,7 +351,7 @@ export function createApi(options) {
       await runTimedJob('day-z', (timing) => printDayZ(requestData, printerName, timing));
       return c.json({ success: true, message: 'Day-Z printed successfully' });
     } catch (error) {
-      return c.json({ error: 'Day-Z print failed' }, 500);
+      return c.json(printErrorBody({ error: 'Day-Z print failed' }, error), 500);
     }
   });
 
@@ -371,7 +383,7 @@ export function createApi(options) {
       }
       return c.json({ success: true, message: 'Order printed successfully' });
     } catch (error) {
-      return c.json({ error: 'Print order failed', details: error.message }, 500);
+      return c.json(printErrorBody({ error: 'Print order failed', details: error.message }, error), 500);
     }
   });
 
@@ -401,7 +413,7 @@ export function createApi(options) {
       }
       return c.json({ success: true, message: 'Update chit printed successfully' });
     } catch (error) {
-      return c.json({ error: 'Print update failed', details: error.message }, 500);
+      return c.json(printErrorBody({ error: 'Print update failed', details: error.message }, error), 500);
     }
   });
 
@@ -429,7 +441,7 @@ export function createApi(options) {
       }
       return c.json({ success: true, message: 'Invoice printed successfully' });
     } catch (error) {
-      return c.json({ error: 'Print invoice failed', details: error.message }, 500);
+      return c.json(printErrorBody({ error: 'Print invoice failed', details: error.message }, error), 500);
     }
   });
 

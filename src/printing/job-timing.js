@@ -1,6 +1,8 @@
+import { logToFile } from '../core/file-log.js';
+
 // Per-job stage timings (R3): one structured log line per print job so a
 // before/after comparison on a real cash-register PC is a matter of reading
-// the console. Not persisted; persistent logs are a separate piece of work.
+// the console or the persistent log file (core/file-log.js).
 //
 // Stages, in ms since the previous one:
 //   recepcion  the job arrived (always 0, it is the reference point)
@@ -15,7 +17,7 @@ const STAGES = ['recepcion', 'armado', 'envio'];
  * @param {string} job Document kind, e.g. 'receipt', 'invoice', 'order'.
  * @param {{now?: () => number, log?: (line: string) => void}} [deps]
  */
-export function startJobTiming(job, { now = () => performance.now(), log = console.log } = {}) {
+export function startJobTiming(job, { now = () => performance.now(), log = logToFile } = {}) {
   const t0 = now();
   const marks = { recepcion: t0 };
   let finished = false;

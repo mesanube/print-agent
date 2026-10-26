@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 // printer-manager.js pulls in Electron, the Windows native module and the
 // electron-store settings at import time; none of them run under vitest.
 vi.mock('electron', () => ({ BrowserWindow: vi.fn() }));
-vi.mock('./native/windows-native-printer.js', () => ({ getAllPrintersNative: vi.fn(() => []) }));
+vi.mock('./worker/print-worker-client.js', () => ({ listPrinters: vi.fn(async () => []) }));
 vi.mock('../core/store.js', () => ({ getSelectedPrinter: vi.fn(), setSelectedPrinter: vi.fn() }));
 
 const { createPrinterCache } = await import('./printer-manager.js');

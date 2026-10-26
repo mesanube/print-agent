@@ -1,7 +1,8 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { BrowserWindow } from 'electron';
-import { getAllPrintersNative } from './native/windows-native-printer.js';
+import { listPrinters as listWindowsPrinters } from './worker/print-worker-client.js';
+import { isPrintTimeout } from './worker/time-budget.js';
 import { getSelectedPrinter, setSelectedPrinter } from '../core/store.js';
 
 const execAsync = promisify(exec);
@@ -63,8 +64,23 @@ const printerCache = createPrinterCache(() => loadSystemPrinters());
 // hidden BrowserWindow), so the print path uses its own cache over the native
 // name list alone; the full list stays for settings and startup auto-select.
 const printerNameCache = createPrinterCache(() =>
-  process.platform === 'win32' ? getAllPrintersNative() : loadSystemPrinters()
+  process.platform === 'win32' ? listNativePrinters() : loadSystemPrinters()
 );
+
+// The native enumeration can block on a bad driver, so it runs in the list
+// process. A failure (including a timeout) yields an empty list, which the
+// cache does not pin, exactly like a failed enumeration did before.
+async function listNativePrinters() {
+  try {
+    return await listWindowsPrinters();
+  } catch (error) {
+    // A timeout is not "no printers": the job must fail as stuck, not as
+    // "printer not found".
+    if (isPrintTimeout(error)) throw error;
+    console.error(`[PrinterDetection] Native printer list failed: ${error.message}`);
+    return [];
+  }
+}
 
 /** Cached system printer list, with the Windows default flagged (see createPrinterCache). */
 export function getSystemPrinters() {
@@ -88,7 +104,7 @@ async function loadSystemPrinters() {
     // Windows: Use native module, enriched with Electron API for default printer info.
     if (process.platform === 'win32') {
       console.log('[PrinterDetection] Using native module for Windows');
-      const nativePrinters = getAllPrintersNative();
+      const nativePrinters = await listNativePrinters();
       // The native module doesn't tell us the default printer, so we use the Electron API for that one piece of info.
       const electronPrinters = await getSystemPrintersElectron();
       const defaultPrinter = electronPrinters.find(p => p.isDefault);

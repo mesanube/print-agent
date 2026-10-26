@@ -6,6 +6,16 @@ const { autoUpdater } = electronUpdater;
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // every 4 hours
 
 let updateReady = false;
+// Version of the downloaded update, reported by GET /status so the client can
+// ask the user to close the agent with Salir. After a restart electron-updater
+// re-detects the cached installer and emits 'update-downloaded' again, so this
+// needs no file of its own (KTD5).
+let pendingVersion = null;
+
+/** Version of an update downloaded and waiting to be installed, or null. */
+export function getPendingUpdateVersion() {
+  return pendingVersion;
+}
 let checkForUpdates = null;
 
 // Manually triggers the same update check the startup/interval/wake paths
@@ -78,6 +88,7 @@ export function initAutoUpdater() {
   });
   autoUpdater.on('update-downloaded', (info) => {
     updateReady = true;
+    pendingVersion = info.version ?? null;
     setStatus('ready');
     console.log(`[Update] Update ${info.version} downloaded. Will install on next restart.`);
   });

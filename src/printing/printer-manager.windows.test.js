@@ -6,8 +6,8 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 // imported, since printer-manager.js branches on it at call time.
 const BrowserWindow = vi.fn();
 vi.mock('electron', () => ({ BrowserWindow }));
-vi.mock('./native/windows-native-printer.js', () => ({
-  getAllPrintersNative: vi.fn(() => [{ name: 'Caja' }, { name: 'Cocina' }]),
+vi.mock('./worker/print-worker-client.js', () => ({
+  listPrinters: vi.fn(async () => [{ name: 'Caja' }, { name: 'Cocina' }]),
 }));
 vi.mock('../core/store.js', () => ({ getSelectedPrinter: vi.fn(), setSelectedPrinter: vi.fn() }));
 
