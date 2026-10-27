@@ -7,6 +7,7 @@ import { printTimeoutError } from './time-budget.js';
 // one for listing printers.
 const LIST_KEY = '__list__';
 const CANCEL_PREFIX = '__cancel__:';
+let cancelSeq = 0;
 const DEFAULT_CANCEL_TIMEOUT_MS = 3000;
 
 /**
@@ -62,7 +63,9 @@ export function createPrintWorkerPool({ launch, log = console.log, cancelTimeout
 
   /** Asks a brand-new process to delete a job from the Windows queue (best effort). */
   function cancelJob(printerName, jobId) {
-    const key = `${CANCEL_PREFIX}${printerName}`;
+    // One process per cancel: two overlapping cancels for the same printer must
+    // not discard each other's process.
+    const key = `${CANCEL_PREFIX}${++cancelSeq}:${printerName}`;
     const budget = { remaining: () => cancelTimeoutMs };
     log(`[PrintPool] printer="${printerName}" op=cancelJob job=${jobId} start`);
     return request(key, 'cancelJob', { printerName, jobId }, budget, { cancel: true })
@@ -84,7 +87,7 @@ export function createPrintWorkerPool({ launch, log = console.log, cancelTimeout
    * @param {{remaining: () => number}} budget
    */
   function request(key, op, payload, budget, { cancel = false } = {}) {
-    const printerName = key.startsWith(CANCEL_PREFIX) ? key.slice(CANCEL_PREFIX.length) : key;
+    const printerName = key.startsWith(CANCEL_PREFIX) ? key.slice(key.indexOf(':', CANCEL_PREFIX.length) + 1) : key;
     const left = budget.remaining();
     if (left <= 0) {
       log(`[PrintPool] printer="${printerName}" op=${op} result=timeout ms=0 (budget spent before sending)`);
@@ -93,7 +96,13 @@ export function createPrintWorkerPool({ launch, log = console.log, cancelTimeout
 
     const id = nextId++;
     const startedAt = Date.now();
-    const entry = workers.get(key) || spawn(key);
+    let entry;
+    try {
+      entry = workers.get(key) || spawn(key);
+    } catch (error) {
+      log(`[PrintPool] printer="${printerName}" op=${op} result=error error="${error.message}"`);
+      return Promise.reject(error);
+    }
 
     return new Promise((resolve, reject) => {
       let timer = null;
@@ -109,21 +118,23 @@ export function createPrintWorkerPool({ launch, log = console.log, cancelTimeout
       entry.pending.set(id, req);
 
       timer = setTimeout(() => {
-        const jobId = req.jobId;
-        const waiting = [...entry.pending.values()];
+        // Every request in this process may own a spooler job (they run one at
+        // a time, but the one that reported an id is not always the one whose
+        // timer fired first), so cancel all the ids that are known.
+        const others = [...entry.pending.values()].filter((r) => r !== req);
+        const jobIds = [req, ...others].map((r) => r.jobId).filter(Boolean);
         entry.pending.clear();
         discard(key, entry);
-        log(`[PrintPool] printer="${printerName}" op=${op} result=timeout ms=${Date.now() - startedAt}${jobId ? ` job=${jobId}` : ''}`);
+        log(`[PrintPool] printer="${printerName}" op=${op} result=timeout ms=${Date.now() - startedAt}${jobIds.length ? ` jobs=${jobIds.join(',')}` : ''}`);
         if (cancel) {
           reject(printTimeoutError(`${op} on "${printerName}" did not answer`));
           return;
         }
-        for (const other of waiting) {
-          if (other === req) clearTimeout(timer);
-          else other.reject(printTimeoutError(`Print process for "${printerName}" was stopped because a job did not answer`));
+        for (const other of others) {
+          other.reject(printTimeoutError(`Print process for "${printerName}" was stopped because a job did not answer`));
         }
         reject(printTimeoutError(`Printer "${printerName}" did not answer ${op} in time`));
-        if (jobId) cancelJob(printerName, jobId);
+        for (const jobId of jobIds) cancelJob(printerName, jobId);
       }, left);
 
       if (!cancel) log(`[PrintPool] printer="${printerName}" op=${op} start`);

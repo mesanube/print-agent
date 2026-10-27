@@ -8,7 +8,7 @@ import { getSelectedPrinter, getPrinterCutter, getPrinterTransport, getPrintMode
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { requireSystemPrinter } from './printer-manager.js';
 import { getPaperGeometry, ensurePrintableWidth } from './paper-geometry.js';
-import { currentBudget, printTimeoutError } from './worker/time-budget.js';
+import { currentBudget, printTimeoutError, isPrintTimeout } from './worker/time-budget.js';
 import { renderCalibrationHtml } from './calibration-page.js';
 import { printBitmap as printBitmapGdi } from './transports/gdi-transport.js';
 import { printBitmap as printBitmapRaw, writeRaw } from './transports/raw-transport.js';
@@ -243,18 +243,19 @@ async function captureHtmlOnDemand(htmlContent, printerName = null) {
 // inherit a rejected promise.
 let printQueue = Promise.resolve();
 
-async function printHtml(htmlContent, printerName = null, timing = null) {
+// Runs `step` as the next turn of the render queue, bounded by the request's
+// time budget. A turn that never ends (a capture that never answers) must not
+// hold the queue: when the time is up it is abandoned, the shared window is
+// dropped (it may be stuck) and the next job starts on a new one.
+function inRenderQueue(step) {
   const budget = currentBudget();
   const run = () => {
     // A job that waited in the queue past its time limit must not print late.
     if (budget?.expired()) throw printTimeoutError('Print request timed out while waiting in the queue');
-    const job = doPrintHtml(htmlContent, printerName, timing);
-    if (!budget) return job;
-    // A capture that never answers must not hold the queue: when the time is
-    // up the job is abandoned, the shared window is dropped (it may be stuck)
-    // and the next job starts on a new one.
-    return budget.race(job, 'Print request').catch((error) => {
-      if (error.code === 'PRINT_TIMEOUT') destroyPrintWindow();
+    const turn = step();
+    if (!budget) return turn;
+    return budget.race(turn, 'Print request').catch((error) => {
+      if (isPrintTimeout(error)) destroyPrintWindow();
       throw error;
     });
   };
@@ -263,11 +264,6 @@ async function printHtml(htmlContent, printerName = null, timing = null) {
   return budget ? budget.race(myTurn, 'Print request') : myTurn;
 }
 
-/**
- * Renders HTML content to an image and sends it to the native printer module.
- * @param {string} htmlContent The HTML to print.
- * @param {string|null} printerName Optional printer name to override default.
- */
 // Debug dry-run: PRINT_AGENT_DRY_RUN=1 yarn dev → captures the receipt PNG
 // and writes it to ~/print-agent-debug/ instead of sending to the printer.
 // Lets you iterate on templates/QR sizing without a printer connected.
@@ -287,13 +283,23 @@ async function dumpPngForReview(imageBuffer, printerName) {
   return file;
 }
 
-async function doPrintHtml(htmlContent, printerName = null, timing = null) {
+/**
+ * Renders HTML content to an image and sends it to the printer.
+ *
+ * Only the capture shares the offscreen window, so only the capture takes a turn
+ * in the render queue. Everything that talks to a printer (validating it, its
+ * printable width, the write) runs outside the queue: a stuck printer must not
+ * hold up jobs for healthy ones (R3).
+ * @param {string} htmlContent The HTML to print.
+ * @param {string|null} printerName Optional printer name to override default.
+ */
+async function printHtml(htmlContent, printerName = null, timing = null) {
   if (DRY_RUN) {
-    console.log(`[Print DEBUG] PRINT_AGENT_DRY_RUN=1 — capturing PNG for printer "${printerName || '(none)'}" instead of printing.`);
-    const image = await captureHtmlOnDemand(htmlContent, printerName);
+    console.log(`[Print DEBUG] PRINT_AGENT_DRY_RUN=1: capturing PNG for printer "${printerName || '(none)'}" instead of printing.`);
+    const image = await inRenderQueue(() => captureHtmlOnDemand(htmlContent, printerName));
     const file = await dumpPngForReview(image.toPNG(), printerName);
     // Signal the dry run so the dispatcher (index.js) logs "preview written"
-    // instead of "printed successfully" — a PNG is not a printed job.
+    // instead of "printed successfully": a PNG is not a printed job.
     return { dryRun: true, file };
   }
 
@@ -313,7 +319,7 @@ async function doPrintHtml(htmlContent, printerName = null, timing = null) {
   console.log(`[Windows Print] Printing to ${selectedPrinter} (${printerName ? 'specified' : 'default'}) via ${transportMode}`);
 
   timing?.setMode('image');
-  const image = await captureHtmlOnDemand(htmlContent, selectedPrinter);
+  const image = await inRenderQueue(() => captureHtmlOnDemand(htmlContent, selectedPrinter));
   const geometry = getPaperGeometry(selectedPrinter);
   timing?.mark('armado');
 

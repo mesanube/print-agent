@@ -111,6 +111,43 @@ describe('print worker pool', () => {
     expect(cancelChild.killed).toBe(true);
   });
 
+  it('rejects the requests queued behind a stuck one and cancels every job id it knows', async () => {
+    const { launch, children } = createFakeLauncher((msg, child) => {
+      if (msg.op === 'writeRaw' && child.key === 'Caja') child.emit({ type: 'job', id: msg.id, jobId: msg.payload.n });
+      if (msg.op === 'cancelJob') child.emit({ type: 'result', id: msg.id, ok: true, result: true });
+    });
+    const pool = createPrintWorkerPool({ launch, log: silent });
+    const first = pool.request('Caja', 'writeRaw', { n: 11 }, createBudget(9000)).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(1000);
+    const queued = pool.request('Caja', 'writeRaw', { n: 12 }, createBudget(9000)).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(8000);
+    expect((await first).code).toBe('PRINT_TIMEOUT');
+    expect((await queued).code).toBe('PRINT_TIMEOUT');
+    await vi.advanceTimersByTimeAsync(0);
+    const cancelled = children.flatMap((c) => c.received).filter((m) => m.op === 'cancelJob').map((m) => m.payload.jobId);
+    expect(cancelled).toEqual([11, 12]);
+  });
+
+  it('two overlapping cancels for one printer use separate processes', async () => {
+    const { launch, children } = createFakeLauncher((msg, child) => {
+      if (msg.op === 'writeRaw') child.emit({ type: 'job', id: msg.id, jobId: 5 });
+    });
+    const pool = createPrintWorkerPool({ launch, log: silent, cancelTimeoutMs: 3000 });
+    const a = pool.request('Caja', 'writeRaw', {}, createBudget(9000)).catch(() => {});
+    await vi.advanceTimersByTimeAsync(9000);
+    await a;
+    const b = pool.request('Caja', 'writeRaw', {}, createBudget(9000)).catch(() => {});
+    await vi.advanceTimersByTimeAsync(9000);
+    await b;
+    const cancelChildren = children.filter((c) => c.received.some((m) => m.op === 'cancelJob'));
+    expect(new Set(cancelChildren.map((c) => c.key)).size).toBe(2);
+  });
+
+  it('rejects the request instead of throwing when the process cannot be launched', async () => {
+    const pool = createPrintWorkerPool({ launch: () => { throw new Error('fork failed'); }, log: silent });
+    await expect(pool.request('Caja', 'writeRaw', {}, createBudget())).rejects.toThrow('fork failed');
+  });
+
   it('rejects only the requests of a process that dies by itself and recreates it', async () => {
     const { launch, children } = createFakeLauncher((msg, child) => {
       if (child.key === 'Cocina') child.emit({ type: 'result', id: msg.id, ok: true, result: 'ok' });

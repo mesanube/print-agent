@@ -8,8 +8,11 @@ import { logToFile } from '../../core/file-log.js';
 const WORKER_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'print-worker.js');
 
 let pool = null;
+let shuttingDown = false;
 
 function getPool() {
+  // A request that arrives while the agent quits must not start a new process.
+  if (shuttingDown) throw new Error('Print agent is shutting down');
   if (!pool) {
     pool = createPrintWorkerPool({
       launch: (key) => utilityProcess.fork(WORKER_PATH, [], { serviceName: `mesanube-print-${key}` }),
@@ -62,6 +65,7 @@ export function queryPrintableWidth(printerName) {
 
 /** Terminates every print process. Called on quit so none survives the agent (KTD9). */
 export function shutdownPrintWorkers() {
+  shuttingDown = true;
   pool?.shutdown();
   pool = null;
 }

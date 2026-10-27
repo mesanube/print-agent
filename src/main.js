@@ -116,12 +116,17 @@ app.on('before-quit', async (event) => {
   event.preventDefault();
 
   try {
+    // Stop the print processes first so none outlives the agent, including
+    // when an update installs right after (KTD9). Its own try: a failure in
+    // the window cleanup below must not skip it.
+    try {
+      shutdownPrintWorkers();
+    } catch (error) {
+      console.error('[Cleanup] Could not stop the print processes:', error.message);
+    }
+
     // Destroy the shared print window
     destroyPrintWindow();
-
-    // Stop the print processes so none outlives the agent, including when an
-    // update installs right after (KTD9)
-    shutdownPrintWorkers();
 
     // Clean up temp receipt files
     await cleanupTempReceipts();

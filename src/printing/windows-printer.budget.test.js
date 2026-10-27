@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // cover what the time budget (KTD2) guarantees there: a capture that never
 // answers cannot hold the queue, and a job that waited too long never prints.
 const windows = [];
+let hangFirstCapture = true;
+const ensurePrintableWidth = vi.fn(async () => {});
 const BrowserWindow = vi.fn(() => {
   const win = {
     destroyed: false,
@@ -11,7 +13,7 @@ const BrowserWindow = vi.fn(() => {
     destroy: () => { win.destroyed = true; },
     // The first window hangs forever; later ones fail at once so a test can
     // tell that a job reached the capture step.
-    loadURL: windows.length === 0 ? () => new Promise(() => {}) : () => Promise.reject(new Error('reached-capture')),
+    loadURL: hangFirstCapture && windows.length === 0 ? () => new Promise(() => {}) : () => Promise.reject(new Error('reached-capture')),
   };
   windows.push(win);
   return win;
@@ -33,7 +35,7 @@ vi.mock('./template-manager.js', () => ({
 vi.mock('./printer-manager.js', () => ({ requireSystemPrinter: vi.fn(async (name) => ({ name })) }));
 vi.mock('./paper-geometry.js', () => ({
   getPaperGeometry: vi.fn(() => ({ dots: 576, cssWidth: 309, zoomFactor: 1.86, paper: '80mm' })),
-  ensurePrintableWidth: vi.fn(async () => {}),
+  ensurePrintableWidth: (...args) => ensurePrintableWidth(...args),
 }));
 vi.mock('./calibration-page.js', () => ({ renderCalibrationHtml: vi.fn(() => '') }));
 const printBitmapGdi = vi.fn();
@@ -49,7 +51,9 @@ const print = (options) => runWithBudget(() => printReceipt(receipt, 'Fiscal'), 
 beforeEach(() => {
   vi.useFakeTimers();
   windows.length = 0;
+  hangFirstCapture = true;
   vi.clearAllMocks();
+  ensurePrintableWidth.mockImplementation(async () => {});
 });
 afterEach(() => vi.useRealTimers());
 
@@ -76,5 +80,18 @@ describe('print budget on the image path', () => {
     expect((await first).code).toBe('PRINT_TIMEOUT');
     expect(windows).toHaveLength(1);
     expect(printBitmapGdi).not.toHaveBeenCalled();
+  });
+});
+
+describe('a stuck printer does not hold up other printers', () => {
+  it('a job whose printer never answers its width query does not delay a job for another printer', async () => {
+    hangFirstCapture = false;
+    ensurePrintableWidth.mockImplementation((name) => (name === 'Stuck' ? new Promise(() => {}) : Promise.resolve()));
+    const stuck = runWithBudget(() => printReceipt(receipt, 'Stuck')).catch((e) => e);
+    const healthy = runWithBudget(() => printReceipt(receipt, 'Fiscal')).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(0);
+    expect((await healthy).message).toBe('reached-capture');
+    await vi.advanceTimersByTimeAsync(9000);
+    expect(stuck).toBeInstanceOf(Promise);
   });
 });
