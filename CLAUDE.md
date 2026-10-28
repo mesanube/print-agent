@@ -51,7 +51,13 @@ src/
       raw-transport.js          # printBitmap() via ESC/POS RAW written straight to the print queue
       winspool.js               # winspool.drv FFI bindings (koffi), Windows-only
     native/
-      windows-native-printer.js # Bridge to cairo_printer.node (Windows-only native module)
+      windows-native-printer.js # Bridge to cairo_printer.node (Windows-only native module); loaded only inside a print worker
+    worker/
+      print-worker.js           # Entry of a print process (Electron utilityProcess): every call that can block runs here
+      print-worker-pool.js      # Main-process side: one process per printer + one for listing, timeouts, kill and cancel
+      print-worker-client.js    # Singleton pool over Electron's utilityProcess; typed helpers (writeRaw, printGdi, listPrinters...)
+      time-budget.js            # 9 s budget per print request (AsyncLocalStorage), PRINT_TIMEOUT error code
+      raw-write.js              # Blocking RAW write sequence (worker side only)
     templates/                  # HTML receipt templates (modern/classic/branded variants)
   settings/
     index.js                    # Settings BrowserWindow + IPC handlers
@@ -60,6 +66,8 @@ src/
   core/
     app-events.js               # quit / language-change / status events
     i18n.js                     # i18next (Spanish default, English fallback)
+    file-log.js                 # Persistent bounded log (print-agent.log, 1 MB, one rotated file) in userData/logs
+    temp-cleanup.js             # Deletes leftover receipt-*.png on quit and on start
     store.js                    # electron-store: printer, template, logo, QR, cutter, autostart
     tray.js                     # System tray icon + context menu
     print-host.html             # HTML host page used by the offscreen print window
@@ -90,7 +98,7 @@ src/
 
 CORS is locked to `https://app.mesanube.ar`, `https://api.mesanube.ar`, and localhost. Endpoints (see `src/server/routes.js` for the source of truth):
 
-- `GET /status` — service health, app `version` (`app.getVersion()`, used by the client to warn on an outdated agent, see `client/src/utils/printAgentVersion.js`), currently selected printer, terminal `registerId`, and the per-printer transport map (`printerTransports`, see Print pipeline below).
+- `GET /status` — service health, app `version` (`app.getVersion()`, used by the client to warn on an outdated agent, see `client/src/utils/printAgentVersion.js`), `updatePending` (version of a downloaded update waiting to install, or `null`), currently selected printer, terminal `registerId`, and the per-printer transport map (`printerTransports`, see Print pipeline below).
 - `GET /printers` — list discovered printers.
 - `GET /settings` / `PUT /settings` — full settings snapshot / partial update (paper width, width adjust, QR, logo, cutter). `paperWidth`/`widthAdjust` are per-printer (like `printerTransports`): GET takes an optional `?printer=` query param, PUT an optional `printer` body field, both defaulting to the currently selected printer.
 - `POST /select-printer` — persist a printer choice.
@@ -117,10 +125,14 @@ This service is one leg of a larger print pipeline. Understanding the contract m
   - `transports/raw-transport.js` — encodes ESC/POS raster via `receipt-encoder.js` (Atkinson dithering, chunked into horizontal strips to avoid a stack-depth limit in the encoder library on tall images) and writes it straight to the Windows print queue's `RAW` datatype via `transports/winspool.js` (koffi bindings to `winspool.drv`), bypassing the driver entirely. No retry, no silent fallback to `gdi` on failure — a RAW-configured printer that fails must surface the error.
 
   The print `BrowserWindow` is **shared** across jobs and recreated only when the effective paper geometry changes (new paper, or a different device-queried/adjusted width) — do not create a new one per print, and do not destroy it except on quit or a geometry change.
+- **Print processes and the time budget**: nothing that can block (WritePrinter and the RAW sequence, `cairo_printer.node`, printer enumeration, the GDI printable width query) runs in the main process. The main process keeps Hono, the tray, the shared `compat` capture window and the settings, and never imports koffi or the native module; it talks to `worker/print-worker-client.js`. Each printer has its own `utilityProcess`, plus one for listing printers, so killing a stuck one never touches the others. Every HTTP print request runs inside `runWithBudget` (9 s total, below the client's 10 s timeout): the wait in the render queue, the capture, the list, the width query and the write all draw from the same budget. Only the capture takes a turn in the shared render queue; validating the printer, its width query and the write run outside it, so a stuck printer never holds up jobs for the others. When it runs out the printer's process is killed, a fresh process deletes the job from the Windows queue with `SetJobW` (so it cannot print later and duplicate after a retry), and the endpoint answers the usual 500 with `code: 'PRINT_TIMEOUT'`. `getPaperGeometry` stays synchronous over a cache that `ensurePrintableWidth` fills before it. A job's `jobId` is released on failure, so a retry with the same `jobId` prints.
+- **Persistent log**: every printer call (start, end, duration, result, timeout, cancel, respawn) and each job timing line go to `userData/logs/print-agent.log` (rotates at 1 MB, keeps `print-agent.log.1`). Read it first when a store reports a hang.
+- **Simulating a hang**: `PRINT_AGENT_SIMULATE_HANG=<printer name>` (development only) makes the print process of that printer block after the spooler assigns the job id, to exercise the timeout, the cancellation and the client's Reintentar on a real machine without a broken printer.
+- **Updates**: the update downloads on its own and installs only when the agent is closed with Salir in the tray (`quitAndInstallIfReady` in the `before-quit` handler). `GET /status` reports `updatePending` (the downloaded version, or `null`) so the client can ask the user to close and reopen the agent. After a restart electron-updater re-detects the cached installer and emits `update-downloaded` again, so no state file is kept.
 - **Persistent state** lives in `electron-store` (printer, template, logo, QR config, cutter flag, autostart, registerId). Never hardcode user preferences.
 - **Platform abstraction**: `src/printing/index.js` dispatches to `windows-printer.js` or `unix-printer.js`. New features must land in **both** implementations or be explicitly guarded by `process.platform`.
 - **Single-instance lock**: `app.requestSingleInstanceLock()` in `main.js` makes a second launch silently no-op. Use the tray icon to confirm the agent is running.
-- **Cleanup on quit**: temp receipt files in the OS tmpdir are deleted explicitly. Preserve this behavior on any quit-handler change.
+- **Cleanup on quit**: temp receipt files in the OS tmpdir are deleted explicitly, the print processes are terminated first, and leftovers are also deleted on start. Preserve this behavior on any quit-handler change.
 - **ES modules only** (`"type": "module"`). Use `import`/`export`, not `require`.
 - **Logging convention**: `console.log("[Component] ...")` prefixes (`[Print]`, `[i18n]`, `[Cleanup]`, `[Server]`). Match existing prefixes when adding logs.
 

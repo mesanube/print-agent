@@ -4,8 +4,6 @@
 import './core/load-env.js';
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
-import os from 'os';
-import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import Store from 'electron-store';
 import { startServer } from './server/index.js';
@@ -17,6 +15,9 @@ import { createTray, updateDockMenu } from './core/tray.js';
 import { autoSelectPrinter } from './printing/printer-manager.js';
 import { destroyPrintWindow } from './printing/windows-printer.js';
 import { initAutoUpdater, quitAndInstallIfReady } from './core/auto-updater.js';
+import { shutdownPrintWorkers } from './printing/worker/print-worker-client.js';
+import { initFileLog } from './core/file-log.js';
+import { cleanupTempReceipts } from './core/temp-cleanup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,6 +43,14 @@ if (!gotTheLock) {
 app.whenReady().then(async () => {
   console.log('Print Agent starting...');
   try {
+    // Persistent log of every printer call, to diagnose hangs afterwards.
+    initFileLog({ dir: path.join(app.getPath('userData'), 'logs') });
+
+    // A forced close or a Windows shutdown skips the quit cleanup. Not in a
+    // second instance that is about to quit: it could delete the temp image
+    // of a job the running instance is printing.
+    if (gotTheLock) cleanupTempReceipts().catch((error) => console.warn('[Cleanup] Startup cleanup failed:', error.message));
+
     // Initialize electron-store for persistence in renderer processes
     Store.initRenderer();
 
@@ -107,32 +116,20 @@ app.on('before-quit', async (event) => {
   event.preventDefault();
 
   try {
+    // Stop the print processes first so none outlives the agent, including
+    // when an update installs right after (KTD9). Its own try: a failure in
+    // the window cleanup below must not skip it.
+    try {
+      shutdownPrintWorkers();
+    } catch (error) {
+      console.error('[Cleanup] Could not stop the print processes:', error.message);
+    }
+
     // Destroy the shared print window
     destroyPrintWindow();
 
     // Clean up temp receipt files
-    const tempDir = os.tmpdir();
-    console.log(`[Cleanup] Scanning temp directory: ${tempDir}`);
-
-    const files = await fs.readdir(tempDir);
-    const receiptFiles = files.filter(f => f.startsWith('receipt-') && f.endsWith('.png'));
-
-    if (receiptFiles.length > 0) {
-      console.log(`[Cleanup] Found ${receiptFiles.length} temp receipt files to delete`);
-      await Promise.all(
-        receiptFiles.map(async (file) => {
-          const filePath = path.join(tempDir, file);
-          try {
-            await fs.unlink(filePath);
-            console.log(`[Cleanup] Deleted: ${file}`);
-          } catch (err) {
-            console.warn(`[Cleanup] Could not delete ${file}: ${err.message}`);
-          }
-        })
-      );
-    } else {
-      console.log('[Cleanup] No temp receipt files found');
-    }
+    await cleanupTempReceipts();
 
     console.log('[Cleanup] Cleanup complete');
   } catch (error) {

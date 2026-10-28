@@ -28,6 +28,7 @@ if (isWindows) {
       EndPagePrinter: winspool.func('bool __stdcall EndPagePrinter(HANDLE hPrinter)'),
       EndDocPrinter: winspool.func('bool __stdcall EndDocPrinter(HANDLE hPrinter)'),
       ClosePrinter: winspool.func('bool __stdcall ClosePrinter(HANDLE hPrinter)'),
+      SetJobW: winspool.func('bool __stdcall SetJobW(HANDLE hPrinter, uint32_t JobId, uint32_t Level, void *pJob, uint32_t Command)'),
       GetLastError: kernel32.func('uint32_t __stdcall GetLastError()'),
     };
   } catch (error) {
@@ -119,5 +120,25 @@ export function closePrinter(hPrinter) {
   checkAvailable();
   if (!raw.ClosePrinter(hPrinter)) {
     throw new Error(`ClosePrinter failed (error ${lastErrorCode()})`);
+  }
+}
+
+const JOB_CONTROL_DELETE = 5;
+
+/**
+ * Deletes a job from the Windows print queue. Used to cancel a job that got
+ * stuck, so it cannot print later and come out twice after a retry.
+ * @param {string} printerName
+ * @param {number} jobId
+ */
+export function cancelJob(printerName, jobId) {
+  checkAvailable();
+  const hPrinter = openPrinter(printerName);
+  try {
+    if (!raw.SetJobW(hPrinter, jobId, 0, null, JOB_CONTROL_DELETE)) {
+      throw new Error(`SetJobW failed for job ${jobId} (error ${lastErrorCode()})`);
+    }
+  } finally {
+    closePrinter(hPrinter);
   }
 }

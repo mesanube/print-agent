@@ -7,7 +7,8 @@ import { BrowserWindow } from 'electron';
 import { getSelectedPrinter, getPrinterCutter, getPrinterTransport, getPrintMode, getPaperWidth, getPrinterCodepage } from '../core/store.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { requireSystemPrinter } from './printer-manager.js';
-import { getPaperGeometry } from './paper-geometry.js';
+import { getPaperGeometry, ensurePrintableWidth } from './paper-geometry.js';
+import { currentBudget, printTimeoutError, isPrintTimeout } from './worker/time-budget.js';
 import { renderCalibrationHtml } from './calibration-page.js';
 import { printBitmap as printBitmapGdi } from './transports/gdi-transport.js';
 import { printBitmap as printBitmapRaw, writeRaw } from './transports/raw-transport.js';
@@ -110,9 +111,10 @@ async function waitForRenderer(printWindow, script, label) {
  * @returns {Promise<Electron.NativeImage>} A Promise that resolves with the captured NativeImage.
  */
 async function captureHtmlOnDemand(htmlContent, printerName = null) {
+  let printWindow = null;
   try {
     const geometry = getPaperGeometry(printerName);
-    const printWindow = getOrCreatePrintWindow(printerName);
+    printWindow = getOrCreatePrintWindow(printerName);
 
     await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
@@ -225,7 +227,9 @@ async function captureHtmlOnDemand(htmlContent, printerName = null) {
   } catch (error) {
     // On error, destroy the window to ensure clean state for next print
     console.error('[Windows Print] Error during capture, destroying window:', error.message);
-    destroyPrintWindow();
+    // A capture abandoned at the time limit can fail late, after the next job
+    // already got a new shared window: only destroy the window this one used.
+    if (!printWindow || printWindow === sharedPrintWindow) destroyPrintWindow();
     throw error;
   }
 }
@@ -239,20 +243,27 @@ async function captureHtmlOnDemand(htmlContent, printerName = null) {
 // inherit a rejected promise.
 let printQueue = Promise.resolve();
 
-async function printHtml(htmlContent, printerName = null, timing = null) {
-  const myTurn = printQueue.then(
-    () => doPrintHtml(htmlContent, printerName, timing),
-    () => doPrintHtml(htmlContent, printerName, timing),
-  );
+// Runs `step` as the next turn of the render queue, bounded by the request's
+// time budget. A turn that never ends (a capture that never answers) must not
+// hold the queue: when the time is up it is abandoned, the shared window is
+// dropped (it may be stuck) and the next job starts on a new one.
+function inRenderQueue(step) {
+  const budget = currentBudget();
+  const run = () => {
+    // A job that waited in the queue past its time limit must not print late.
+    if (budget?.expired()) throw printTimeoutError('Print request timed out while waiting in the queue');
+    const turn = step();
+    if (!budget) return turn;
+    return budget.race(turn, 'Print request').catch((error) => {
+      if (isPrintTimeout(error)) destroyPrintWindow();
+      throw error;
+    });
+  };
+  const myTurn = printQueue.then(run, run);
   printQueue = myTurn.catch(() => {});
-  return myTurn;
+  return budget ? budget.race(myTurn, 'Print request') : myTurn;
 }
 
-/**
- * Renders HTML content to an image and sends it to the native printer module.
- * @param {string} htmlContent The HTML to print.
- * @param {string|null} printerName Optional printer name to override default.
- */
 // Debug dry-run: PRINT_AGENT_DRY_RUN=1 yarn dev → captures the receipt PNG
 // and writes it to ~/print-agent-debug/ instead of sending to the printer.
 // Lets you iterate on templates/QR sizing without a printer connected.
@@ -272,13 +283,23 @@ async function dumpPngForReview(imageBuffer, printerName) {
   return file;
 }
 
-async function doPrintHtml(htmlContent, printerName = null, timing = null) {
+/**
+ * Renders HTML content to an image and sends it to the printer.
+ *
+ * Only the capture shares the offscreen window, so only the capture takes a turn
+ * in the render queue. Everything that talks to a printer (validating it, its
+ * printable width, the write) runs outside the queue: a stuck printer must not
+ * hold up jobs for healthy ones (R3).
+ * @param {string} htmlContent The HTML to print.
+ * @param {string|null} printerName Optional printer name to override default.
+ */
+async function printHtml(htmlContent, printerName = null, timing = null) {
   if (DRY_RUN) {
-    console.log(`[Print DEBUG] PRINT_AGENT_DRY_RUN=1 — capturing PNG for printer "${printerName || '(none)'}" instead of printing.`);
-    const image = await captureHtmlOnDemand(htmlContent, printerName);
+    console.log(`[Print DEBUG] PRINT_AGENT_DRY_RUN=1: capturing PNG for printer "${printerName || '(none)'}" instead of printing.`);
+    const image = await inRenderQueue(() => captureHtmlOnDemand(htmlContent, printerName));
     const file = await dumpPngForReview(image.toPNG(), printerName);
     // Signal the dry run so the dispatcher (index.js) logs "preview written"
-    // instead of "printed successfully" — a PNG is not a printed job.
+    // instead of "printed successfully": a PNG is not a printed job.
     return { dryRun: true, file };
   }
 
@@ -290,6 +311,7 @@ async function doPrintHtml(htmlContent, printerName = null, timing = null) {
 
   // Validate printer exists on system (cached list, one fresh retry)
   await requireSystemPrinter(selectedPrinter);
+  await ensurePrintableWidth(selectedPrinter);
 
   const transportMode = getPrinterTransport(selectedPrinter);
   const printBitmap = TRANSPORTS[transportMode] || printBitmapGdi;
@@ -297,10 +319,11 @@ async function doPrintHtml(htmlContent, printerName = null, timing = null) {
   console.log(`[Windows Print] Printing to ${selectedPrinter} (${printerName ? 'specified' : 'default'}) via ${transportMode}`);
 
   timing?.setMode('image');
-  const image = await captureHtmlOnDemand(htmlContent, selectedPrinter);
+  const image = await inRenderQueue(() => captureHtmlOnDemand(htmlContent, selectedPrinter));
   const geometry = getPaperGeometry(selectedPrinter);
   timing?.mark('armado');
 
+  if (currentBudget()?.expired()) throw printTimeoutError('Print request timed out before sending to the printer');
   await printBitmap({
     printerName: selectedPrinter,
     image,
@@ -354,6 +377,7 @@ async function printText(build, docData, printerName = null, timing = null) {
   await requireSystemPrinter(selectedPrinter);
   // Only documents that print the logo wait for it (comandas never do).
   const logoBlock = blocks.find((b) => b.type === 'logo');
+  if (logoBlock) await ensurePrintableWidth(selectedPrinter);
   const geometry = logoBlock ? getPaperGeometry(selectedPrinter) : null;
   const logo = logoBlock ? await logoCache.get(logoBlock.url, logoMaxWidth(geometry.dots, geometry.paper)) : null;
   const bytes = encodeDocument(blocks, ctx, {
@@ -363,7 +387,7 @@ async function printText(build, docData, printerName = null, timing = null) {
   });
   timing?.mark('armado');
   console.log(`[Windows Print] Printing to ${selectedPrinter} as ESC/POS text`);
-  writeRaw(selectedPrinter, bytes, 'Mesanube ticket');
+  await writeRaw(selectedPrinter, bytes, 'Mesanube ticket');
   timing?.mark('envio');
 }
 

@@ -1,5 +1,6 @@
 import { getPaperWidth, getWidthAdjust } from '../core/store.js';
-import { getPrintableWidthDots } from './device-caps.js';
+import { queryPrintableWidth } from './worker/print-worker-client.js';
+import { isPrintTimeout } from './worker/time-budget.js';
 
 // Single source of truth for print geometry: the printable width in dots at the
 // printer, the CSS design width, and the zoom factor that maps one onto the
@@ -18,6 +19,36 @@ const PAPER_TABLE = {
 const PLAUSIBILITY_MIN = 0.8;
 const PLAUSIBILITY_MAX = 1.25;
 const DOTS_MULTIPLE = 8;
+
+// The GDI width query can block, so it runs in the printer's process (see
+// worker/print-worker-client.js). getPaperGeometry stays synchronous by reading
+// the last answer from this cache; callers await ensurePrintableWidth first.
+// A timed out or null answer is not cached, so the next job asks again.
+const CAPS_TTL_MS = 5 * 60 * 1000;
+const capsCache = new Map(); // printerName -> { caps, at }
+
+/**
+ * Fills the printable width cache for a printer. Only a timeout propagates
+ * (the job has no time left); any other failure falls back to the paper table.
+ * @param {string|null} printerName
+ */
+export async function ensurePrintableWidth(printerName, { now = Date.now } = {}) {
+  if (!printerName || process.platform !== 'win32') return;
+  const hit = capsCache.get(printerName);
+  if (hit && now() - hit.at < CAPS_TTL_MS) return;
+  try {
+    const caps = await queryPrintableWidth(printerName);
+    if (caps) capsCache.set(printerName, { caps, at: now() });
+  } catch (error) {
+    if (isPrintTimeout(error)) throw error;
+    console.warn(`[Paper] Printable width query failed for "${printerName}": ${error.message}`);
+  }
+}
+
+/** Test hook: forgets every cached width. */
+export function clearPrintableWidthCache() {
+  capsCache.clear();
+}
 
 const roundDownTo8 = (n) => Math.floor(n / DOTS_MULTIPLE) * DOTS_MULTIPLE;
 
@@ -40,7 +71,7 @@ export function getPaperGeometry(printerName = null) {
   let dots = base.dots;
   let origin = 'table';
 
-  const caps = printerName ? getPrintableWidthDots(printerName) : null;
+  const caps = printerName ? capsCache.get(printerName)?.caps ?? null : null;
   if (caps && Number.isFinite(caps.horzRes) &&
       caps.horzRes >= base.dots * PLAUSIBILITY_MIN &&
       caps.horzRes <= base.dots * PLAUSIBILITY_MAX) {

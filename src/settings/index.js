@@ -6,7 +6,8 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { getSystemPrinters, invalidatePrinterCache } from '../printing/printer-manager.js';
 import { printTestPage, printCalibrationPage, printTextTestPage } from '../printing/index.js';
-import { printReceiptNative } from '../printing/native/windows-native-printer.js';
+import { printImageFile } from '../printing/worker/print-worker-client.js';
+import { runWithBudget } from '../printing/worker/time-budget.js';
 import i18next from '../core/i18n.js';
 import { generateQRCodeHTML, generateQRCodeData } from '../printing/qrcode-generator.js';
 import {
@@ -155,7 +156,7 @@ export function setupSettingsIPC() {
   });
   ipcMain.handle('test-print', async (event, restaurantData) => {
     try {
-      await printTestPage(restaurantData);
+      await runWithBudget(() => printTestPage(restaurantData));
       return { success: true, message: i18next.t('ipcMessages.testSuccess') };
     } catch (error) {
       console.error('Template test print failed:', error);
@@ -172,11 +173,11 @@ export function setupSettingsIPC() {
         const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
         await fsp.writeFile(tempPath, base64Data, 'base64');
         
-        printReceiptNative({
+        await runWithBudget(() => printImageFile({
             printerName: selectedPrinter,
-            imageInput: tempPath,
+            imagePath: tempPath,
             cutter: getPrinterCutter(selectedPrinter),
-        });
+        }));
 
         return { success: true, message: i18next.t('ipcMessages.testSuccess') };
     } catch (error) {
@@ -204,11 +205,11 @@ export function setupSettingsIPC() {
         }
 
         const imagePath = result.filePaths[0];
-        printReceiptNative({
+        await runWithBudget(() => printImageFile({
             printerName: selectedPrinter,
-            imageInput: imagePath,
+            imagePath,
             cutter: getPrinterCutter(selectedPrinter),
-        });
+        }));
         
         return { success: true, message: 'Image print job sent successfully.' };
 
@@ -483,7 +484,7 @@ export function setupSettingsIPC() {
   });
   ipcMain.handle('print-text-test-page', async (event, printerName) => {
     try {
-      await printTextTestPage(printerName || getSelectedPrinter());
+      await runWithBudget(() => printTextTestPage(printerName || getSelectedPrinter()));
       return { success: true, message: i18next.t('ipcMessages.textTestSuccess') };
     } catch (error) {
       console.error('Text test page print failed:', error);
@@ -493,7 +494,7 @@ export function setupSettingsIPC() {
   ipcMain.handle('print-calibration-page', async () => {
     try {
       const selectedPrinter = getSelectedPrinter();
-      await printCalibrationPage(selectedPrinter);
+      await runWithBudget(() => printCalibrationPage(selectedPrinter));
       return { success: true, message: i18next.t('ipcMessages.calibrationSuccess') };
     } catch (error) {
       console.error('Calibration page print failed:', error);

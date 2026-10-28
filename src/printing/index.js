@@ -3,6 +3,14 @@ import { printReceipt as printReceiptUnix, printOrder as printOrderUnix, printOr
 
 const isWindows = process.platform === 'win32';
 
+// Keeps the error's `code` (PRINT_TIMEOUT) when the message is wrapped, so the
+// HTTP layer can still tell a stuck job from any other failure.
+function wrapPrintError(message, error) {
+  const wrapped = new Error(message);
+  if (error.code) wrapped.code = error.code;
+  return wrapped;
+}
+
 // USE_WINDOWS_PATH routes the order-type prints (comanda, update chit, test
 // page) through the Windows renderer path regardless of host OS. Dry-run
 // (PRINT_AGENT_DRY_RUN=1) lives there, so on macOS you can preview the HTML
@@ -29,7 +37,7 @@ export async function printReceipt(data, printerName = null, timing = null) {
     console.log(`[Print] ✓ Receipt printed successfully to ${printerName || 'default printer'}`);
   } catch (error) {
     console.error('[Print] ✗ Receipt printing failed:', error);
-    throw new Error(`Print receipt failed: ${error.message}`);
+    throw wrapPrintError(`Print receipt failed: ${error.message}`, error);
   }
 }
 
@@ -55,7 +63,7 @@ export async function printOrder(data, printerName = null, timing = null) {
     }
   } catch (error) {
     console.error('[Print] ✗ Order printing failed:', error);
-    throw new Error(`Print order failed: ${error.message}`);
+    throw wrapPrintError(`Print order failed: ${error.message}`, error);
   }
 }
 
@@ -80,7 +88,7 @@ let dryRun = null;
     }
   } catch (error) {
     console.error('[Print] ✗ Update chit printing failed:', error);
-    throw new Error(`Print update failed: ${error.message}`);
+    throw wrapPrintError(`Print update failed: ${error.message}`, error);
   }
 }
 
@@ -120,7 +128,7 @@ export async function printCashClose(data, printerName = null, timing = null) {
     console.log(`[Print] ✓ Cash-close printed successfully to ${printerName || 'default printer'}`);
   } catch (error) {
     console.error('[Print] ✗ Cash-close printing failed:', error);
-    throw new Error(`Print cash-close failed: ${error.message}`);
+    throw wrapPrintError(`Print cash-close failed: ${error.message}`, error);
   }
 }
 
@@ -140,7 +148,7 @@ export async function printDayZ(data, printerName = null, timing = null) {
     console.log(`[Print] ✓ Day-Z printed successfully to ${printerName || 'default printer'}`);
   } catch (error) {
     console.error('[Print] ✗ Day-Z printing failed:', error);
-    throw new Error(`Print day-Z failed: ${error.message}`);
+    throw wrapPrintError(`Print day-Z failed: ${error.message}`, error);
   }
 }
 
@@ -198,6 +206,6 @@ export async function printTestPage(restaurantData = null) {
     }
   } catch (error) {
     console.error('[Print Test] ✗ Template test failed:', error);
-    throw new Error(`Template test failed: ${error.message}`);
+    throw wrapPrintError(`Template test failed: ${error.message}`, error);
   }
 }
