@@ -4,7 +4,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { BrowserWindow } from 'electron';
-import { getSelectedPrinter, getPrinterCutter, getPrinterTransport, getPrintMode, getPaperWidth, getPrinterCodepage } from '../core/store.js';
+import { getSelectedPrinter, getPrinterCutter, getPrinterTransport, getPrintMode, getPaperWidth, getPrinterCodepage, getPrinterCharSpacing } from '../core/store.js';
 import { generateHtmlFromTemplate, renderCashCloseHtml, renderDayZHtml } from './template-manager.js';
 import { requireSystemPrinter } from './printer-manager.js';
 import { getPaperGeometry, ensurePrintableWidth } from './paper-geometry.js';
@@ -370,6 +370,7 @@ async function printText(build, docData, printerName = null, timing = null) {
   const ctx = layoutContext({
     paper: getPaperWidth(selectedPrinter),
     settings: docData.restaurant?.receiptSettings,
+    charSpacing: getPrinterCharSpacing(selectedPrinter),
   });
   const blocks = build(docData, ctx);
   if (DRY_RUN) return dumpTextForReview(blocks, selectedPrinter);

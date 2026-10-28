@@ -29,7 +29,7 @@
     "version": "Version {{version}}",
     "currentPrinter": "Current Printer:",
     "selectPrinter": "Select Printer:",
-    "testPrint": "Test Template Print",
+    "testPrint": "Test printer",
     "testImagePrint": "Test Image Print",
     "apply": "Apply",
     "cancel": "Cancel",
@@ -79,11 +79,15 @@
     "printMode": "Print mode",
     "printModeText": "Text (fast)",
     "printModeCompat": "Compatibility (image)",
-    "printTextTestPage": "Print text test page",
     "printerCodepage": "Character table",
     "codepageCp858": "CP858",
     "codepageCp850": "CP850",
-    "codepageCp437": "CP437"
+    "codepageCp437": "CP437",
+    "charSpacing": "Letter spacing",
+    "charSpacing0": "Normal",
+    "charSpacing1": "Slightly wider",
+    "charSpacing2": "Wider",
+    "charSpacing3": "Much wider"
   },
   "ipcMessages": {
     "printersError": "Error loading available printers",
@@ -97,8 +101,7 @@
     "calibrationError": "Calibration page print failed: {{message}}",
     "exportSuccess": "Image saved successfully.",
     "exportError": "Failed to save image.",
-    "textTestSuccess": "Text test page sent successfully",
-    "textTestError": "Text test page print failed: {{message}}",
-    "invalidPrinterCodepage": "Invalid character table"
+    "invalidPrinterCodepage": "Invalid character table",
+    "invalidCharSpacing": "Invalid letter spacing"
   }
 }

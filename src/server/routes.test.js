@@ -12,6 +12,7 @@ vi.mock('../core/store.js', () => {
     getLogoSize: fn(), setLogoSize: fn(), getPrinterCutter: fn(true), setPrinterCutter: fn(),
     getPrintMode: fn('text'), setPrintMode: fn(), PRINT_MODES: ['text', 'compat'],
     getPrinterCodepage: fn('cp858'), setPrinterCodepage: fn(), PRINTER_CODEPAGES: ['cp858'],
+    getPrinterCharSpacing: fn(0), setPrinterCharSpacing: fn(), CHAR_SPACINGS: [0, 1, 2, 3],
     getRegisterId: fn(), setRegisterId: fn(), getPrinterExplicitlySelected: fn(false), selectPrinterByOperator: fn(),
   };
 });
@@ -64,5 +65,33 @@ describe('GET /status update field', () => {
 
   it('reports null when no update is waiting', async () => {
     expect((await (await app.request('/status')).json()).updatePending).toBeNull();
+  });
+});
+
+describe('settings charSpacing', () => {
+  const put = (body) => app.request('/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  it('saves a valid spacing for the given printer and returns it', async () => {
+    const store = await import('../core/store.js');
+    const response = await put({ printer: 'Cocina', charSpacing: 2 });
+    expect(response.status).toBe(200);
+    expect(store.setPrinterCharSpacing).toHaveBeenCalledWith('Cocina', 2);
+    expect((await response.json()).settings).toHaveProperty('charSpacing');
+  });
+
+  it('ignores a spacing outside 0 to 3', async () => {
+    const store = await import('../core/store.js');
+    await put({ printer: 'Cocina', charSpacing: 7 });
+    await put({ printer: 'Cocina', charSpacing: '2' });
+    expect(store.setPrinterCharSpacing).not.toHaveBeenCalled();
+  });
+
+  it('GET reports the spacing of the selected printer', async () => {
+    const response = await app.request('/settings');
+    expect((await response.json()).charSpacing).toBe(0);
   });
 });

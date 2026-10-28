@@ -10,6 +10,17 @@ describe('columnsFor', () => {
   it('falls back to 80mm for an unknown paper', () => {
     expect(columnsFor('A4')).toBe(48);
   });
+
+  it('drops columns as character spacing widens each cell past 12 dots', () => {
+    expect(columnsFor('80mm', 1)).toBe(44);
+    expect(columnsFor('80mm', 3)).toBe(38);
+    expect(columnsFor('58mm', 2)).toBe(27);
+  });
+
+  it('divides the columns by the character scale', () => {
+    expect(columnsFor('80mm', 0, 2)).toBe(24);
+    expect(columnsFor('58mm', 0, 3)).toBe(10);
+  });
 });
 
 describe('twoColumns', () => {
