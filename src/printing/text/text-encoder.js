@@ -1,5 +1,6 @@
 import ReceiptPrinterEncoder from '@point-of-sale/receipt-printer-encoder';
 import QRCode from 'qrcode';
+import { columnsFor } from './layout.js';
 
 export const CODEPAGE = 'cp858';
 
@@ -13,7 +14,7 @@ const QUIET_ZONE_MODULES = 4;
 function qrImage(data, ctx) {
   const { modules } = QRCode.create(data, { errorCorrectionLevel: 'M' });
   const total = modules.size + QUIET_ZONE_MODULES * 2;
-  const fit = Math.floor((ctx.cols * 12) / total);
+  const fit = Math.floor((ctx.dots || ctx.cols * 12) / total);
   const dots = Math.max(1, Math.min(QR_MODULE_DOTS[ctx.paper] || QR_MODULE_DOTS['80mm'], fit));
   const size = Math.ceil((total * dots) / 8) * 8;
   const pixels = new Uint8ClampedArray(size * size * 4).fill(255);
@@ -48,11 +49,17 @@ function qrImage(data, ctx) {
 export function encodeDocument(blocks, ctx, { cutter, logo = null, codepage = CODEPAGE } = {}) {
   const encoder = new ReceiptPrinterEncoder({
     language: 'esc-pos',
-    columns: ctx.cols,
+    // The library only accepts its own column set (32 to 48). Lines are already
+    // wrapped to ctx.cols, which spacing can make narrower, so give it the base
+    // Font A width of the paper.
+    columns: columnsFor(ctx.paper),
     imageMode: 'raster',
     newline: '\n',
   });
   encoder.initialize().codepage(codepage);
+  // ESC SP n: extra dots right of each character. ESC @ above resets it to 0.
+  const spacing = (n) => encoder.raw([0x1b, 0x20, n]);
+  if (ctx.charSpacing) spacing(ctx.charSpacing);
 
   for (const block of blocks) {
     if (block.type === 'text') {
@@ -78,6 +85,8 @@ export function encodeDocument(blocks, ctx, { cutter, logo = null, codepage = CO
       if (logo) {
         encoder.align('center').image(logo, logo.width, logo.height, 'atkinson').align('left').newline();
       }
+    } else if (block.type === 'spacing') {
+      spacing(block.value);
     } else if (block.type === 'feed') {
       for (let i = 0; i < (block.lines || 1); i++) encoder.newline();
     }

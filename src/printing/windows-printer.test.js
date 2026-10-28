@@ -17,6 +17,7 @@ vi.mock('../core/store.js', () => ({
   getPrinterTransport: vi.fn(() => 'gdi'),
   getPrintMode: vi.fn((name) => modes[name] || 'text'),
   getPrinterCodepage: vi.fn((name) => codepages[name] || 'cp858'),
+  getPrinterCharSpacing: vi.fn(() => 0),
   getPaperWidth: vi.fn(() => '80mm'),
 }));
 const generateHtmlFromTemplate = vi.fn(async () => '<html></html>');

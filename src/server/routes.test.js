@@ -12,6 +12,7 @@ vi.mock('../core/store.js', () => {
     getLogoSize: fn(), setLogoSize: fn(), getPrinterCutter: fn(true), setPrinterCutter: fn(),
     getPrintMode: fn('text'), setPrintMode: fn(), PRINT_MODES: ['text', 'compat'],
     getPrinterCodepage: fn('cp858'), setPrinterCodepage: fn(), PRINTER_CODEPAGES: ['cp858'],
+    getPrinterCharSpacing: fn(0), setPrinterCharSpacing: fn(), CHAR_SPACINGS: [0, 1, 2, 3],
     getRegisterId: fn(), setRegisterId: fn(), getPrinterExplicitlySelected: fn(false), selectPrinterByOperator: fn(),
   };
 });

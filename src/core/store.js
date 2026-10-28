@@ -218,6 +218,24 @@ export function getPrinterCodepage(printerName) {
   return PRINTER_CODEPAGES.includes(codepage) ? codepage : 'cp858';
 }
 
+// Per-printer character spacing in dots (ESC SP n) for the text mode. Font A
+// looks narrow on most printers; a little spacing makes it read wider at the
+// cost of columns (layout.js). A missing entry is 0, the printer's default.
+export const CHAR_SPACINGS = [0, 1, 2, 3];
+
+export function setPrinterCharSpacing(printerName, spacing) {
+  const spacings = store.get('printerCharSpacings', {});
+  spacings[printerName] = spacing;
+  store.set('printerCharSpacings', spacings);
+  console.log('[Settings] Printer char spacing saved:', printerName, '->', spacing);
+}
+
+export function getPrinterCharSpacing(printerName) {
+  const spacings = store.get('printerCharSpacings', {});
+  const spacing = printerName ? spacings[printerName] : null;
+  return CHAR_SPACINGS.includes(spacing) ? spacing : 0;
+}
+
 export function getPrinterTransports() {
   return store.get('printerTransports', {});
 }

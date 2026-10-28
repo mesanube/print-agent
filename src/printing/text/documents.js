@@ -14,34 +14,47 @@
 // encoder never wraps. Nothing here has a height limit: a document of any
 // length prints whole (R8).
 
-import { columnsFor, twoColumns, wrap, center, rule } from './layout.js';
+import { columnsFor, dotsFor, twoColumns, wrap, center, rule } from './layout.js';
 import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate } from '../receipt-format.js';
 import { generateAfipQRCodeData } from '../qrcode-generator.js';
 
 const money = (amount, { negative = false } = {}) =>
   `${negative ? '-' : ''}$${formatPrice(Number(amount) || 0)}`;
 
+// Text sizes as ESC/POS character multipliers (width x height). The printer
+// only scales its font by whole numbers, so these are the only sizes there are.
+export const TEXT_SIZES = {
+  normal: { width: 1, height: 1 },
+  tall: { width: 1, height: 2 },
+  large: { width: 2, height: 2 },
+  xlarge: { width: 3, height: 3 },
+};
+
+// The location's receiptSettings.fontSize (server RECEIPT_FONT_SIZES). 'grande'
+// keeps its original meaning, double height. An unknown value prints normal.
+const FONT_SIZE_TO_TEXT_SIZE = { normal: 'normal', grande: 'tall', doble: 'large', triple: 'xlarge' };
+
 /**
  * Per-document layout context: column counts and text styles derived from the
- * paper width and the location's receipt settings (R14, KTD13).
- * - normal: Font A 1x on both widths.
- * - grande: double height (1x2) on both widths, never double width, so the
- *   column count does not drop.
- * - Totals are double width and height only on 80mm; on 58mm double width
- *   would leave 16 columns, too few for "TOTAL" plus an amount.
+ * paper width, the printer's character spacing and the location's receipt
+ * settings (R14, KTD13).
+ * - The body scale divides the columns, so every line still fits the paper.
+ * - Totals are at least double height, and double width on 80mm; on 58mm double
+ *   width would leave 16 columns, too few for "TOTAL" plus an amount. They are
+ *   never smaller than the body.
  */
-export function layoutContext({ paper = '80mm', settings = {} } = {}) {
-  const cols = columnsFor(paper);
-  const big = settings?.fontSize === 'grande';
-  const bodyHeight = big ? 2 : 1;
-  const totalWide = paper !== '58mm';
+export function layoutContext({ paper = '80mm', settings = {}, charSpacing = 0 } = {}) {
+  const body = TEXT_SIZES[FONT_SIZE_TO_TEXT_SIZE[settings?.fontSize] || 'normal'];
+  const totalWidth = Math.max(body.width, paper !== '58mm' ? 2 : 1);
   return {
-    cols,
+    cols: columnsFor(paper, charSpacing, body.width),
     paper,
+    charSpacing,
+    dots: dotsFor(paper),
     settings: settings || {},
-    body: { height: bodyHeight },
-    total: totalWide ? { width: 2, height: 2 } : { height: 2 },
-    totalCols: totalWide ? Math.floor(cols / 2) : cols,
+    body,
+    total: { width: totalWidth, height: Math.max(body.height, 2) },
+    totalCols: columnsFor(paper, charSpacing, totalWidth),
   };
 }
 
@@ -52,8 +65,16 @@ class DocBuilder {
   }
 
   // Body text, laid out as the caller already decided (one physical line).
+  // A style can make text bigger than the body, never smaller.
   line(text, style = {}) {
-    this.blocks.push({ type: 'text', text, ...this.ctx.body, ...style });
+    const { body } = this.ctx;
+    this.blocks.push({
+      type: 'text',
+      text,
+      ...style,
+      width: Math.max(body.width, style.width || 1),
+      height: Math.max(body.height, style.height || 1),
+    });
     return this;
   }
 
@@ -63,7 +84,8 @@ class DocBuilder {
   }
 
   centered(text, style = {}) {
-    const width = style.width === 2 ? Math.floor(this.ctx.cols / 2) : this.ctx.cols;
+    const { paper, charSpacing, body, cols } = this.ctx;
+    const width = (style.width || 1) > body.width ? columnsFor(paper, charSpacing, style.width) : cols;
     return this.lines(wrap(text, width).map((l) => center(l, width)), style);
   }
 

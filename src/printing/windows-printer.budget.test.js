@@ -25,6 +25,7 @@ vi.mock('../core/store.js', () => ({
   getPrinterTransport: vi.fn(() => 'gdi'),
   getPrintMode: vi.fn(() => 'compat'),
   getPrinterCodepage: vi.fn(() => 'cp858'),
+  getPrinterCharSpacing: vi.fn(() => 0),
   getPaperWidth: vi.fn(() => '80mm'),
 }));
 vi.mock('./template-manager.js', () => ({

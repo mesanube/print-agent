@@ -14,6 +14,7 @@ import {
   getPrinterCutter, setPrinterCutter,
   getPrintMode, setPrintMode, PRINT_MODES,
   getPrinterCodepage, setPrinterCodepage, PRINTER_CODEPAGES,
+  getPrinterCharSpacing, setPrinterCharSpacing, CHAR_SPACINGS,
   getRegisterId, setRegisterId,
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
@@ -160,6 +161,7 @@ export function createApi(options) {
       cutterEnabled: getPrinterCutter(printerName),
       printMode: getPrintMode(printerName),
       printerCodepage: getPrinterCodepage(printerName),
+      charSpacing: getPrinterCharSpacing(printerName),
     });
   });
 
@@ -200,6 +202,9 @@ export function createApi(options) {
       if (printerName && PRINTER_CODEPAGES.includes(body.printerCodepage)) {
         setPrinterCodepage(printerName, body.printerCodepage);
       }
+      if (printerName && CHAR_SPACINGS.includes(body.charSpacing)) {
+        setPrinterCharSpacing(printerName, body.charSpacing);
+      }
       return c.json({
         success: true,
         settings: {
@@ -214,7 +219,8 @@ export function createApi(options) {
           cutterEnabled: getPrinterCutter(printerName),
           printMode: getPrintMode(printerName),
           printerCodepage: getPrinterCodepage(printerName),
-        },
+          charSpacing: getPrinterCharSpacing(printerName),
+            },
       });
     } catch (error) {
       return c.json({ error: 'Failed to update settings', details: error.message }, 500);

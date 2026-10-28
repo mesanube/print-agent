@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { layoutContext, buildReceipt, buildInvoice, buildOrder, buildOrderUpdate, buildCashClose, buildDayZ } from './documents.js';
 import { encodeDocument } from './text-encoder.js';
 import { buildTextTestPage } from './test-page.js';
+import { columnsFor } from './layout.js';
 
 const texts = (blocks) => blocks.filter((b) => b.type === 'text').map((b) => b.text);
 const indexOf = (blocks, predicate) => blocks.findIndex(predicate);
@@ -368,5 +369,78 @@ describe('logo raster', () => {
     const withLogo = encodeDocument(blocks, ctx, { cutter: false, logo });
     const without = encodeDocument(blocks, ctx, { cutter: false, logo: null });
     expect(withLogo.length).toBeGreaterThan(without.length + 64 * 16 / 8 - 1);
+  });
+});
+
+describe('character spacing', () => {
+  const containsSeq = (arr, seq) => arr.some((_, i) => seq.every((v, j) => arr[i + j] === v));
+  const ESC_SP = [0x1b, 0x20];
+
+  it('sends ESC SP n and narrows the grid when the printer has spacing', () => {
+    const ctx = layoutContext({ paper: '80mm', charSpacing: 2 });
+    expect(ctx.cols).toBe(41);
+    const bytes = Array.from(encodeDocument([{ type: 'text', text: 'hola' }], ctx, { cutter: false }));
+    expect(containsSeq(bytes, [...ESC_SP, 2])).toBe(true);
+  });
+
+  it('sends no ESC SP when spacing is 0', () => {
+    const ctx = layoutContext({ paper: '80mm' });
+    const bytes = Array.from(encodeDocument([{ type: 'text', text: 'hola' }], ctx, { cutter: false }));
+    expect(containsSeq(bytes, ESC_SP)).toBe(false);
+  });
+
+  it('test page prints one sample per spacing and restores the configured one', () => {
+    const ctx = layoutContext({ paper: '58mm', charSpacing: 1 });
+    const blocks = buildTextTestPage({ printerName: 'Caja' }, ctx);
+    const spacings = blocks.filter((b) => b.type === 'spacing').map((b) => b.value);
+    expect(spacings).toEqual([0, 1, 2, 3, 1]);
+    const samples = blocks.filter((b) => b.type === 'text' && /^[0-3]: /.test(b.text));
+    expect(samples).toHaveLength(4);
+    for (const b of samples) expect(b.text.length).toBeLessThanOrEqual(columnsFor('58mm', 3));
+  });
+});
+
+describe('location text size', () => {
+  const order = { items: [{ name: 'Milanesa napolitana con papas fritas', quantity: 2, price: 12500 }], orderTotal: 25000 };
+  // Header rows are body text on every paper; item names can split mid-word
+  // on 58mm at big sizes, so they are not a stable anchor.
+  const bodyLines = (blocks) => blocks.filter((b) => b.type === 'text' && /^(Mesero|Fecha|Hora)/.test(b.text));
+  const ctxFor = (fontSize, paper = '80mm') => layoutContext({ paper, settings: { fontSize } });
+
+  it('grande keeps its double height meaning; unknown values print normal', () => {
+    expect(ctxFor('grande').body).toEqual({ width: 1, height: 2 });
+    expect(ctxFor('normal').body).toEqual({ width: 1, height: 1 });
+    expect(ctxFor('enorme').body).toEqual({ width: 1, height: 1 });
+  });
+
+  for (const [fontSize, scale, cols80, cols58] of [['doble', 2, 24, 16], ['triple', 3, 16, 10]]) {
+    it(`${fontSize} scales width and height by ${scale} and wraps to ${cols80}/${cols58} columns`, () => {
+      for (const [paper, cols] of [['80mm', cols80], ['58mm', cols58]]) {
+        const ctx = ctxFor(fontSize, paper);
+        expect(ctx.cols).toBe(cols);
+        const lines = bodyLines(buildReceipt({ order, restaurant: {} }, ctx));
+        expect(lines.length).toBeGreaterThan(0);
+        for (const b of lines) {
+          expect(b.width).toBe(scale);
+          expect(b.height).toBe(scale);
+          expect(b.text.length).toBeLessThanOrEqual(cols);
+        }
+      }
+    });
+  }
+
+  it('a title never prints smaller than the body', () => {
+    const blocks = buildReceipt({ order, restaurant: { name: 'Pentos' } }, ctxFor('triple'));
+    const title = blocks.find((b) => b.type === 'text' && b.text.includes('Pentos'));
+    expect(title.width).toBe(3);
+    expect(title.height).toBe(3);
+  });
+
+  it('totals stay at least as big as the body and fit their line', () => {
+    const totals = buildReceipt({ order, restaurant: {} }, ctxFor('triple')).filter((b) => b.type === 'text' && b.text.includes('TOTAL'));
+    for (const b of totals) {
+      expect(b.width).toBe(3);
+      expect(b.text.length * b.width).toBeLessThanOrEqual(48);
+    }
   });
 });
