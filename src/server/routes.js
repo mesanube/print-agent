@@ -220,7 +220,7 @@ export function createApi(options) {
           printMode: getPrintMode(printerName),
           printerCodepage: getPrinterCodepage(printerName),
           charSpacing: getPrinterCharSpacing(printerName),
-            },
+        },
       });
     } catch (error) {
       return c.json({ error: 'Failed to update settings', details: error.message }, 500);

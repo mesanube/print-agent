@@ -413,9 +413,9 @@ describe('location text size', () => {
     expect(ctxFor('enorme').body).toEqual({ width: 1, height: 1 });
   });
 
-  for (const [fontSize, scale, cols80, cols58] of [['doble', 2, 24, 16], ['triple', 3, 16, 10]]) {
-    it(`${fontSize} scales width and height by ${scale} and wraps to ${cols80}/${cols58} columns`, () => {
-      for (const [paper, cols] of [['80mm', cols80], ['58mm', cols58]]) {
+  for (const [fontSize, scale, cols80, cols58] of [['doble', 2, 24, 16], ['triple', 3, 16, null]]) {
+    it(`${fontSize} scales width and height by ${scale} and wraps to ${cols80} columns on 80mm`, () => {
+      for (const [paper, cols] of [['80mm', cols80], ['58mm', cols58]].filter(([, c]) => c)) {
         const ctx = ctxFor(fontSize, paper);
         expect(ctx.cols).toBe(cols);
         const lines = bodyLines(buildReceipt({ order, restaurant: {} }, ctx));
@@ -428,6 +428,16 @@ describe('location text size', () => {
       }
     });
   }
+
+  it('steps a size down when it would leave fewer than 12 columns, so amounts fit', () => {
+    const ctx = layoutContext({ paper: '58mm', settings: { fontSize: 'triple' }, charSpacing: 3 });
+    expect(ctx.body).toEqual({ width: 2, height: 2 });
+    expect(ctx.cols).toBe(12);
+    const bigOrder = { items: [{ name: 'Lomo', quantity: 1, price: 125000 }], orderTotal: 125000 };
+    for (const b of buildReceipt({ order: bigOrder, restaurant: {} }, ctx).filter((x) => x.type === 'text')) {
+      expect(b.text.length * b.width).toBeLessThanOrEqual(columnsFor('58mm', 3) * 1);
+    }
+  });
 
   it('a title never prints smaller than the body', () => {
     const blocks = buildReceipt({ order, restaurant: { name: 'Pentos' } }, ctxFor('triple'));

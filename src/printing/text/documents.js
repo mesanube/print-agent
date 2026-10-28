@@ -34,17 +34,25 @@ export const TEXT_SIZES = {
 // keeps its original meaning, double height. An unknown value prints normal.
 const FONT_SIZE_TO_TEXT_SIZE = { normal: 'normal', grande: 'tall', doble: 'large', triple: 'xlarge' };
 
+// Below 12 columns an amount like "$125.000,00" no longer fits on a line, so a
+// size that would leave fewer steps down (on 58mm triple prints as doble).
+const MIN_COLS = 12;
+const STEP_DOWN = { xlarge: 'large', large: 'normal' };
+
 /**
  * Per-document layout context: column counts and text styles derived from the
  * paper width, the printer's character spacing and the location's receipt
  * settings (R14, KTD13).
- * - The body scale divides the columns, so every line still fits the paper.
+ * - The body scale divides the columns, so every line still fits the paper; a
+ *   size that would leave fewer than MIN_COLS steps down.
  * - Totals are at least double height, and double width on 80mm; on 58mm double
  *   width would leave 16 columns, too few for "TOTAL" plus an amount. They are
  *   never smaller than the body.
  */
 export function layoutContext({ paper = '80mm', settings = {}, charSpacing = 0 } = {}) {
-  const body = TEXT_SIZES[FONT_SIZE_TO_TEXT_SIZE[settings?.fontSize] || 'normal'];
+  let size = FONT_SIZE_TO_TEXT_SIZE[settings?.fontSize] || 'normal';
+  while (STEP_DOWN[size] && columnsFor(paper, charSpacing, TEXT_SIZES[size].width) < MIN_COLS) size = STEP_DOWN[size];
+  const body = TEXT_SIZES[size];
   const totalWidth = Math.max(body.width, paper !== '58mm' ? 2 : 1);
   return {
     cols: columnsFor(paper, charSpacing, body.width),

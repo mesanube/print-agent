@@ -14,7 +14,7 @@ const QUIET_ZONE_MODULES = 4;
 function qrImage(data, ctx) {
   const { modules } = QRCode.create(data, { errorCorrectionLevel: 'M' });
   const total = modules.size + QUIET_ZONE_MODULES * 2;
-  const fit = Math.floor((ctx.dots || ctx.cols * 12) / total);
+  const fit = Math.floor(ctx.dots / total);
   const dots = Math.max(1, Math.min(QR_MODULE_DOTS[ctx.paper] || QR_MODULE_DOTS['80mm'], fit));
   const size = Math.ceil((total * dots) / 8) * 8;
   const pixels = new Uint8ClampedArray(size * size * 4).fill(255);
