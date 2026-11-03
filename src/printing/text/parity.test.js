@@ -152,6 +152,7 @@ describe('HTML and text renderers print the same information', () => {
   const sales = {
     total: 50000, totalDiscounts: 5000, grossRevenue: 55000, discountCount: 3,
     byMethod: [{ name: 'cash', total: 30000 }, { name: 'Mercado Pago', total: 20000 }],
+    internalConsumption: { totalOrders: 4, totalCost: 7350 },
   };
   const expense = { description: 'Hielo', supplier: 'Frio SA', amount: 1500, documentType: 'invoice', fiscalCategory: 'A', documentNumber: '0001-00000042' };
 
@@ -177,6 +178,7 @@ describe('HTML and text renderers print the same information', () => {
       'Gastos (no afectan el arqueo)', 'Cuenta corriente', 'Hielo', 'Frio SA', 'Factura A 0001-00000042', '$1.500,00',
       'Subtotal cta. cte.', 'Total facturado AFIP', '$20.000,00', 'Observacion', 'faltante de cambio',
       'Venta por mozo', '1. Ana', '100.0%',
+      'Consumo interno (no es venta)', 'Valorizado', '$7.350,00',
     ]);
   });
 
@@ -196,6 +198,20 @@ describe('HTML and text renderers print the same information', () => {
       'Arqueo del dia (turnos cerrados: 1)', 'Fondo inicial', 'Efectivo esperado', '$35.200,00', 'Efectivo contado',
       'Diferencia', '-$200,00', 'Turnos en curso: 1', 'Turnos del dia', 'Caja 1', 'Caja 2', 'en curso',
       'Gastos efectivo (en arqueo)', 'Hielo', '$800,00', 'Total gastos del dia', 'Total facturado AFIP', '$20.000,00',
+      'Consumo interno (no es venta)', 'Valorizado', '$7.350,00',
     ]);
+  });
+
+  it('cierre y Z sin consumo interno: ninguno de los dos imprime la seccion', async () => {
+    const none = { ...sales, internalConsumption: { totalOrders: 0, totalCost: 0 } };
+    const close = { sales: none };
+    const z = { businessDate: '2026-09-29', sales: none };
+    for (const [html, blocks] of [
+      [await renderCashCloseHtml(close, restaurant), buildCashClose({ summary: close, restaurant }, ctx)],
+      [await renderDayZHtml(z, restaurant), buildDayZ({ summary: z, restaurant }, ctx)],
+    ]) {
+      expect(htmlText(html)).not.toContain('Consumo interno');
+      expect(blocksText(blocks)).not.toContain('Consumo interno');
+    }
   });
 });
