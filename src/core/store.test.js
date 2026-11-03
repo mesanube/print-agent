@@ -15,7 +15,7 @@ vi.mock('electron-store', () => ({
   },
 }));
 
-const { getPrinterCutter, setPrinterCutter, getPrintMode, setPrintMode, getPrinterCodepage, setPrinterCodepage } = await import('./store.js');
+const { getPrinterCutter, setPrinterCutter, getPrintMode, setPrintMode, getPrinterCodepage, setPrinterCodepage, getPrinterCharSpacing, setPrinterCharSpacing } = await import('./store.js');
 
 beforeEach(() => {
   memory.clear();
@@ -72,6 +72,19 @@ describe('printer codepage setting', () => {
     setPrinterCodepage('Caja', 'cp850');
     expect(getPrinterCodepage('Caja')).toBe('cp850');
     expect(getPrinterCodepage('Fiscal')).toBe('cp858');
+  });
+});
+
+
+describe('printer character spacing setting', () => {
+  it('defaults each printer to 0 so existing printers keep their layout', () => {
+    expect(getPrinterCharSpacing('Caja')).toBe(0);
+  });
+
+  it('stores the spacing per printer', () => {
+    setPrinterCharSpacing('Caja', 2);
+    expect(getPrinterCharSpacing('Caja')).toBe(2);
+    expect(getPrinterCharSpacing('Fiscal')).toBe(0);
   });
 });
 

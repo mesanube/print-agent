@@ -20,7 +20,8 @@ import {
     setWidthAdjust, getWidthAdjust,
     setPrinterTransport, getPrinterTransport,
     setPrintMode, getPrintMode, PRINT_MODES,
-    setPrinterCodepage, getPrinterCodepage, PRINTER_CODEPAGES
+    setPrinterCodepage, getPrinterCodepage, PRINTER_CODEPAGES,
+    setPrinterCharSpacing, getPrinterCharSpacing, CHAR_SPACINGS
 } from '../core/store.js';
 import { getAbsoluteLogoPath, getLogoAsBase64 } from '../shared/file-helpers.js';
 
@@ -154,9 +155,16 @@ export function setupSettingsIPC() {
       return { success: false, message: i18next.t('ipcMessages.selectError') };
     }
   });
-  ipcMain.handle('test-print', async (event, restaurantData) => {
+  // One test button for both modes: a text-mode printer gets the ESC/POS test
+  // page, a compat printer the image template.
+  ipcMain.handle('test-print', async (event, printerName) => {
     try {
-      await runWithBudget(() => printTestPage(restaurantData));
+      const printer = printerName || getSelectedPrinter();
+      if (getPrintMode(printer) === 'text') {
+        await runWithBudget(() => printTextTestPage(printer));
+      } else {
+        await runWithBudget(() => printTestPage());
+      }
       return { success: true, message: i18next.t('ipcMessages.testSuccess') };
     } catch (error) {
       console.error('Template test print failed:', error);
@@ -482,14 +490,18 @@ export function setupSettingsIPC() {
     setPrinterCodepage(printerName, codepage);
     return { success: true };
   });
-  ipcMain.handle('print-text-test-page', async (event, printerName) => {
-    try {
-      await runWithBudget(() => printTextTestPage(printerName || getSelectedPrinter()));
-      return { success: true, message: i18next.t('ipcMessages.textTestSuccess') };
-    } catch (error) {
-      console.error('Text test page print failed:', error);
-      return { success: false, message: i18next.t('ipcMessages.textTestError', { message: error.message }) };
+  ipcMain.handle('get-printer-char-spacing', (event, printerName) => {
+    return { spacing: getPrinterCharSpacing(printerName) };
+  });
+  ipcMain.handle('set-printer-char-spacing', (event, printerName, spacing) => {
+    if (!printerName) {
+      return { success: false, message: i18next.t('ipcMessages.noPrinterForTest') };
     }
+    if (!CHAR_SPACINGS.includes(spacing)) {
+      return { success: false, message: i18next.t('ipcMessages.invalidCharSpacing') };
+    }
+    setPrinterCharSpacing(printerName, spacing);
+    return { success: true };
   });
   ipcMain.handle('print-calibration-page', async () => {
     try {
@@ -548,5 +560,6 @@ export function cleanupSettingsIPC() {
   ipcMain.removeHandler('set-print-mode');
   ipcMain.removeHandler('get-printer-codepage');
   ipcMain.removeHandler('set-printer-codepage');
-  ipcMain.removeHandler('print-text-test-page');
+  ipcMain.removeHandler('get-printer-char-spacing');
+  ipcMain.removeHandler('set-printer-char-spacing');
 }

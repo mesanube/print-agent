@@ -20,6 +20,9 @@
         .current-printer { background: #e8f4fd; border: 1px solid #b3d9f7; border-radius: 6px; padding: 12px; font-size: 14px; color: #0066cc; }
         .custom-select-wrapper { position: relative; }
         .custom-select-trigger { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; background: white; cursor: pointer; transition: border-color 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .custom-select-trigger::after { content: ''; flex-shrink: 0; margin-left: 12px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #666; transition: transform 0.2s; }
+        .custom-select-wrapper.open .custom-select-trigger::after { transform: rotate(180deg); }
+        .custom-select-wrapper.disabled .custom-select-trigger::after { border-top-color: #bbb; }
         .custom-select-wrapper.disabled .custom-select-trigger { background: #f5f5f5; color: #999; cursor: not-allowed; }
         .custom-select-trigger:hover, .custom-select-wrapper.open .custom-select-trigger { border-color: #007AFF; }
         .custom-options { display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 6px; margin-top: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 100; max-height: 150px; overflow-y: auto; }
@@ -127,7 +130,6 @@
                         <div class="custom-option" data-value="compat"><span data-i18n="settingsWindow.printModeCompat"></span></div>
                     </div>
                 </div>
-                <button type="button" id="print-text-test-btn" class="btn-secondary" disabled><span data-i18n="settingsWindow.printTextTestPage"></span></button>
             </div>
 
             <div class="section" id="printer-codepage-section">
@@ -138,6 +140,19 @@
                         <div class="custom-option selected" data-value="cp858"><span data-i18n="settingsWindow.codepageCp858"></span></div>
                         <div class="custom-option" data-value="cp850"><span data-i18n="settingsWindow.codepageCp850"></span></div>
                         <div class="custom-option" data-value="cp437"><span data-i18n="settingsWindow.codepageCp437"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="char-spacing-section">
+                <label><span data-i18n="settingsWindow.charSpacing"></span></label>
+                <div id="char-spacing-wrapper" class="custom-select-wrapper disabled">
+                    <div class="custom-select-trigger"><span data-i18n="settingsWindow.charSpacing0"></span></div>
+                    <div class="custom-options">
+                        <div class="custom-option selected" data-value="0"><span data-i18n="settingsWindow.charSpacing0"></span></div>
+                        <div class="custom-option" data-value="1"><span data-i18n="settingsWindow.charSpacing1"></span></div>
+                        <div class="custom-option" data-value="2"><span data-i18n="settingsWindow.charSpacing2"></span></div>
+                        <div class="custom-option" data-value="3"><span data-i18n="settingsWindow.charSpacing3"></span></div>
                     </div>
                 </div>
             </div>
@@ -310,7 +325,8 @@
         const printerTransportSection = document.getElementById('printer-transport-section');
         const printModeWrapper = document.getElementById('print-mode-wrapper');
         const printerCodepageWrapper = document.getElementById('printer-codepage-wrapper');
-        const printTextTestBtn = document.getElementById('print-text-test-btn');
+        const charSpacingWrapper = document.getElementById('char-spacing-wrapper');
+        const charSpacingSection = document.getElementById('char-spacing-section');
 
         // Template elements - DISABLED
         // const saveTemplateBtn = document.getElementById('save-template-btn');
@@ -412,6 +428,8 @@
             });
             // The gdi/raw transport only applies to the image path (compat).
             if (printerTransportSection) printerTransportSection.style.display = mode === 'compat' ? '' : 'none';
+            // Character spacing only applies to the text path.
+            if (charSpacingSection) charSpacingSection.style.display = mode === 'text' ? '' : 'none';
         }
 
         // Print mode is per-printer (KD2), same refresh cycle as the transport.
@@ -419,11 +437,9 @@
             if (!printModeWrapper) return;
             if (!selectedPrinterName) {
                 printModeWrapper.classList.add('disabled');
-                printTextTestBtn.disabled = true;
                 return;
             }
             printModeWrapper.classList.remove('disabled');
-            printTextTestBtn.disabled = false;
             const result = await window.electronAPI.getPrintMode(selectedPrinterName);
             setPrintModeDropdown(result.mode || 'text');
         }
@@ -447,6 +463,28 @@
             printerCodepageWrapper.classList.remove('disabled');
             const result = await window.electronAPI.getPrinterCodepage(selectedPrinterName);
             setPrinterCodepageDropdown(result.codepage || 'cp858');
+        }
+
+        function setCharSpacingDropdown(spacing) {
+            if (!charSpacingWrapper) return;
+            const value = String(spacing);
+            const selected = charSpacingWrapper.querySelector(`.custom-option[data-value="${value}"]`);
+            const trigger = charSpacingWrapper.querySelector('.custom-select-trigger span');
+            if (trigger && selected) trigger.textContent = selected.textContent;
+            charSpacingWrapper.querySelectorAll('.custom-option').forEach((opt) => {
+                opt.classList.toggle('selected', opt.dataset.value === value);
+            });
+        }
+
+        async function refreshCharSpacing() {
+            if (!charSpacingWrapper) return;
+            if (!selectedPrinterName) {
+                charSpacingWrapper.classList.add('disabled');
+                return;
+            }
+            charSpacingWrapper.classList.remove('disabled');
+            const result = await window.electronAPI.getPrinterCharSpacing(selectedPrinterName);
+            setCharSpacingDropdown(result.spacing || 0);
         }
 
         // Automatic cut is per-printer too (KD6), same refresh cycle as the
@@ -623,7 +661,7 @@
             setLoading(true, 'settingsWindow.printing');
             try {
                 // This uses the correct, abstracted print method that works on all OS
-                const result = await window.electronAPI.testPrint();
+                const result = await window.electronAPI.testPrint(selectedPrinterName);
                 if (result.success) {
                     showStatus(result.message, 'success');
                 } else {
@@ -740,6 +778,7 @@
                 testTemplateBtn.disabled = false;
                 refreshPrinterTransport();
                 refreshPrinterCodepage();
+                refreshCharSpacing();
                 refreshPaperSettings();
                 refreshCutter();
                 refreshPrintMode();
@@ -757,6 +796,7 @@
                     testTemplateBtn.disabled = !previous;
                     refreshPrinterTransport();
                     refreshPrinterCodepage();
+                refreshCharSpacing();
                     refreshPaperSettings();
                     refreshCutter();
                     refreshPrintMode();
@@ -838,14 +878,17 @@
                 }
             });
 
-            printTextTestBtn.addEventListener('click', async () => {
+            initCustomSelect('char-spacing-wrapper', async (option) => {
                 if (!selectedPrinterName) return;
-                printTextTestBtn.disabled = true;
-                try {
-                    const result = await window.electronAPI.printTextTestPage(selectedPrinterName);
-                    showStatus(result.message, result.success ? 'success' : 'error');
-                } finally {
-                    printTextTestBtn.disabled = false;
+                const spacing = Number(option.dataset.value);
+                const previous = Number(charSpacingWrapper.querySelector('.custom-option.selected')?.dataset.value || 0);
+                const result = await window.electronAPI.setPrinterCharSpacing(selectedPrinterName, spacing);
+                if (result.success) {
+                    setCharSpacingDropdown(spacing);
+                    showStatus(`${i18next.t('settingsWindow.charSpacing')}: ${option.textContent}`, 'success');
+                } else {
+                    setCharSpacingDropdown(previous);
+                    showStatus(result.message || 'Failed to update the character spacing', 'error');
                 }
             });
 

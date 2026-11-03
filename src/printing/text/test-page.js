@@ -3,6 +3,7 @@
 // the column width, the native QR and the cut as configured for it.
 
 import { twoColumns, center, rule } from './layout.js';
+import { TEXT_SIZES } from './documents.js';
 
 export function buildTextTestPage({ printerName = '' } = {}, ctx) {
   const { cols, paper } = ctx;
@@ -25,6 +26,19 @@ export function buildTextTestPage({ printerName = '' } = {}, ctx) {
     text(center('Doble alto', cols), { height: 2 }),
     text(center('Doble', Math.floor(cols / 2)), { width: 2, height: 2 }),
     text(center('Invertido', cols), { invert: true }),
+    text(rule(cols)),
+    text('Espaciado de letras:'),
+    ...[0, 1, 2, 3].flatMap((n) => [
+      { type: 'spacing', value: n },
+      text(`${n}: Milanesa x2 $25.000`),
+    ]),
+    { type: 'spacing', value: ctx.charSpacing || 0 },
+    text(rule(cols)),
+    text('Tamaños de letra:'),
+    text('Normal', TEXT_SIZES.normal),
+    text('Doble alto', TEXT_SIZES.tall),
+    text('Grande', TEXT_SIZES.large),
+    text('Extra', TEXT_SIZES.xlarge),
     text(rule(cols)),
     text(center('QR de ejemplo', cols)),
     { type: 'qr', data: 'https://www.mesanube.com' },

@@ -2,12 +2,20 @@
 // a fixed character grid: every function returns lines that are at most
 // `width` characters long, so the encoder never has to wrap on its own and the
 // output can be asserted without a printer. The grid is Font A (12 dots wide),
-// which gives 48 columns on 80mm (576 dots) and 32 on 58mm (384 dots).
+// which gives 48 columns on 80mm (576 dots) and 32 on 58mm (384 dots). The
+// per-printer character spacing (ESC SP n) adds n dots to the right of every
+// character, so each cell is 12 + n dots wide and fewer columns fit. A scaled
+// character (GS ! width multiplier) multiplies the whole cell, spacing included.
 
-const COLUMNS = { '80mm': 48, '58mm': 32 };
+const PRINTABLE_DOTS = { '80mm': 576, '58mm': 384 };
+const FONT_A_DOTS = 12;
 
-export function columnsFor(paper) {
-  return COLUMNS[paper] || COLUMNS['80mm'];
+export function dotsFor(paper) {
+  return PRINTABLE_DOTS[paper] || PRINTABLE_DOTS['80mm'];
+}
+
+export function columnsFor(paper, charSpacing = 0, scale = 1) {
+  return Math.floor(dotsFor(paper) / ((FONT_A_DOTS + charSpacing) * scale));
 }
 
 /** Word-wraps `text` to `width`, hard-splitting words longer than a line. */

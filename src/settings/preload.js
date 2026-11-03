@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Test prints
   printDataUrl: (dataUrl) => ipcRenderer.invoke('print-data-url', dataUrl),
   browseAndPrintImage: () => ipcRenderer.invoke('browse-and-print-image'),
-  testPrint: (restaurantData) => ipcRenderer.invoke('test-print', restaurantData),
+  testPrint: (printerName) => ipcRenderer.invoke('test-print', printerName),
 
 
   // Refresh printers
@@ -62,7 +62,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setPrintMode: (printerName, mode) => ipcRenderer.invoke('set-print-mode', printerName, mode),
   getPrinterCodepage: (printerName) => ipcRenderer.invoke('get-printer-codepage', printerName),
   setPrinterCodepage: (printerName, codepage) => ipcRenderer.invoke('set-printer-codepage', printerName, codepage),
-  printTextTestPage: (printerName) => ipcRenderer.invoke('print-text-test-page', printerName),
+  getPrinterCharSpacing: (printerName) => ipcRenderer.invoke('get-printer-char-spacing', printerName),
+  setPrinterCharSpacing: (printerName, spacing) => ipcRenderer.invoke('set-printer-char-spacing', printerName, spacing),
 
   // Printer Transport API
   getPrinterTransport: (printerName) => ipcRenderer.invoke('get-printer-transport', printerName),

@@ -29,7 +29,7 @@
     "version": "Versión {{version}}",
     "currentPrinter": "Impresora Actual:",
     "selectPrinter": "Seleccionar Impresora:",
-    "testPrint": "Probar Plantilla",
+    "testPrint": "Probar impresora",
     "testImagePrint": "Probar Imagen",
     "apply": "Aplicar",
     "cancel": "Cancelar",
@@ -79,11 +79,15 @@
     "printMode": "Modo de impresión",
     "printModeText": "Texto (rápido)",
     "printModeCompat": "Compatibilidad (imagen)",
-    "printTextTestPage": "Imprimir prueba en texto",
     "printerCodepage": "Tabla de caracteres",
     "codepageCp858": "CP858",
     "codepageCp850": "CP850",
-    "codepageCp437": "CP437"
+    "codepageCp437": "CP437",
+    "charSpacing": "Espaciado de letras",
+    "charSpacing0": "Normal",
+    "charSpacing1": "Un poco más ancho",
+    "charSpacing2": "Más ancho",
+    "charSpacing3": "Mucho más ancho"
   },
   "ipcMessages": {
     "printersError": "Error al cargar las impresoras disponibles",
@@ -97,8 +101,7 @@
     "calibrationError": "Error al imprimir la página de calibración: {{message}}",
     "exportSuccess": "Imagen guardada con éxito.",
     "exportError": "Error al guardar la imagen.",
-    "textTestSuccess": "Prueba en texto enviada correctamente",
-    "textTestError": "Error al imprimir la prueba en texto: {{message}}",
-    "invalidPrinterCodepage": "Tabla de caracteres no válida"
+    "invalidPrinterCodepage": "Tabla de caracteres no válida",
+    "invalidCharSpacing": "Espaciado de letras no válido"
   }
 }

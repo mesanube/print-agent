@@ -79,6 +79,19 @@ function discountBlock(sales) {
     `<div class="row"><span class="label">Tasa de descuento</span><span class="amount">${rateStr}</span></div>`;
 }
 
+// Consumo interno block: not a sale, printed apart and valued at frozen cost.
+// Mirrors internalConsumptionRows in text/documents.js. Empty when there was
+// none or the summary predates the field.
+function internalConsumptionBlock(sales) {
+  const ic = sales?.internalConsumption;
+  const orders = Number(ic?.totalOrders) || 0;
+  if (orders <= 0) return '';
+  return `<div class="divider"></div>` +
+    `<div class="section-title">Consumo interno (no es venta)</div>` +
+    `<div class="row"><span class="label">Pedidos</span><span class="amount">${orders}</span></div>` +
+    moneyRow('Valorizado', ic.totalCost || 0);
+}
+
 // Detail lines for a paid-in / paid-out section. Every label/meta is escaped.
 function movementLines(items) {
   if (!items || items.length === 0) return '<div class="muted">Sin movimientos</div>';
@@ -154,7 +167,8 @@ export async function renderCashCloseHtml(summary, restaurantData) {
     `<div class="section-title">Ventas (netas)</div>` +
     salesByMethodLines(sales) +
     moneyRow('Total ventas', sales.total || 0, { emph: true }) +
-    discountBlock(sales);
+    discountBlock(sales) +
+    internalConsumptionBlock(sales);
 
   // Paid-in / paid-out
   const cashIn = summary.cashIn || { total: 0, items: [] };
@@ -311,7 +325,8 @@ export async function renderDayZHtml(summary, restaurantData) {
     `<div class="section-title">Ventas del dia (netas)</div>` +
     salesByMethodLines(sales) +
     moneyRow('Total ventas', sales.total || 0, { emph: true }) +
-    discountBlock(sales);
+    discountBlock(sales) +
+    internalConsumptionBlock(sales);
 
   const arqueoBlock =
     `<div class="divider-strong"></div>` +
