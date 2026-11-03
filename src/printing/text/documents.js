@@ -365,6 +365,19 @@ function discountSummary(doc, sales) {
   doc.row('Tasa de descuento', `${rate.toFixed(1).replace('.', ',')}%`);
 }
 
+// Consumo interno is not a sale: printed apart, valued at frozen cost (the
+// server's orderCogsExpr, same figure as Reportes > Explorar). Skipped when
+// there was none or the summary predates the field.
+function internalConsumptionRows(doc, sales) {
+  const ic = sales?.internalConsumption;
+  const orders = Number(ic?.totalOrders) || 0;
+  if (orders <= 0) return;
+  doc.rule();
+  doc.line('Consumo interno (no es venta)', { bold: true });
+  doc.row('Pedidos', String(orders));
+  doc.row('Valorizado', money(ic.totalCost));
+}
+
 function movementRows(doc, items) {
   if (!items || items.length === 0) {
     doc.line('Sin movimientos');
@@ -414,6 +427,7 @@ export function buildCashClose({ summary = {}, restaurant = {} }, ctx) {
   salesByMethodRows(doc, sales);
   doc.row('Total ventas', money(sales.total), { bold: true });
   discountSummary(doc, sales);
+  internalConsumptionRows(doc, sales);
 
   const cashIn = summary.cashIn || { total: 0, items: [] };
   const cashOut = summary.cashOut || { total: 0, items: [] };
@@ -502,6 +516,7 @@ export function buildDayZ({ summary = {}, restaurant = {} }, ctx) {
   salesByMethodRows(doc, sales);
   doc.row('Total ventas', money(sales.total), { bold: true });
   discountSummary(doc, sales);
+  internalConsumptionRows(doc, sales);
 
   doc.rule('=');
   doc.paragraph(`Arqueo del dia (turnos cerrados: ${Number(cc.closedShifts) || 0})`, { bold: true });

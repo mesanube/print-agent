@@ -205,6 +205,43 @@ describe('buildCashClose / buildDayZ', () => {
   });
 });
 
+describe('consumo interno on the cash close and the day Z', () => {
+  const sales = (internalConsumption) => ({ total: 5000, byMethod: [{ name: 'cash', total: 5000 }], internalConsumption });
+  const rowOf = (blocks, label) => texts(blocks).find((t) => t.startsWith(label));
+  const builders = [
+    ['cash close', (s, ctx = layoutContext()) => buildCashClose({ summary: { sales: s }, restaurant: { name: 'Bar' } }, ctx)],
+    ['day Z', (s, ctx = layoutContext()) => buildDayZ({ summary: { businessDate: '2026-09-29', sales: s }, restaurant: { name: 'Bar' } }, ctx)],
+  ];
+
+  for (const [name, build] of builders) {
+    it(`${name}: prints the section with the order count and the valorizado`, () => {
+      const blocks = build(sales({ totalOrders: 3, totalCost: 1500 }));
+      expect(has(blocks, 'Consumo interno (no es venta)')).toBe(true);
+      expect(rowOf(blocks, 'Pedidos').endsWith('3')).toBe(true);
+      expect(rowOf(blocks, 'Valorizado').endsWith('$1.500,00')).toBe(true);
+    });
+
+    it(`${name}: omits the section when there was no consumo interno`, () => {
+      const blocks = build(sales({ totalOrders: 0, totalCost: 0 }));
+      expect(has(blocks, 'Consumo interno')).toBe(false);
+    });
+
+    it(`${name}: a summary saved before the field existed prints as before`, () => {
+      const blocks = build(sales(undefined));
+      expect(has(blocks, 'Consumo interno')).toBe(false);
+      expect(has(blocks, 'Total ventas')).toBe(true);
+    });
+
+    it(`${name}: the section fits the paper columns on 58mm`, () => {
+      const ctx = layoutContext({ paper: '58mm' });
+      const blocks = build(sales({ totalOrders: 12, totalCost: 1234567.89 }), ctx);
+      const section = blocks.filter((b) => b.type === 'text' && /Consumo interno|Pedidos|Valorizado/.test(b.text));
+      expect(section.length).toBe(3);
+      for (const b of section) expect(b.text.length).toBeLessThanOrEqual(b.width === 2 ? ctx.cols / 2 : ctx.cols);
+    });
+  }
+});
+
 const containsBytes = (arr, seq) => arr.some((_, i) => seq.every((v, j) => arr[i + j] === v));
 
 // Width in dots of the first GS v 0 raster image in the output.
