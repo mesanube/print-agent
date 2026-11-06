@@ -184,6 +184,6 @@ export function generateAfipQRCodeData(invoiceData) {
     codAut: afipNumber(invoiceData.cae),
   };
 
-  const qrPayload = Buffer.from(JSON.stringify(qrData)).toString('base64url');
+  const qrPayload = Buffer.from(JSON.stringify(qrData)).toString('base64');
   return `https://www.afip.gob.ar/fe/qr/?p=${qrPayload}`;
 }
