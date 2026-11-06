@@ -536,3 +536,31 @@ describe('order identity', () => {
     expect(lines[start + 1].length).toBe(ctx.cols);
   });
 });
+
+describe('buildInvoice IIBB legend', () => {
+  const order = { items: [{ name: 'Cafe', price: 1000, quantity: 1 }], orderTotal: 1000 };
+  const promotion = 'OPERACIÓN ALCANZADA POR REGÍMENES DE PROMOCIÓN ECONÓMICA CABA';
+
+  it('wraps a long line inside 58 mm paper', () => {
+    const ctx = layoutContext({ paper: '58mm' });
+    const blocks = buildInvoice({ order, invoiceData: { ...invoiceData, iibbLegend: [promotion] } }, ctx);
+    const lines = texts(blocks);
+    expect(lines.join(' ').replace(/\s+/g, ' ')).toContain(promotion);
+    const start = lines.findIndex((t) => t.startsWith('OPERACIÓN'));
+    expect(start).toBeGreaterThan(-1);
+    expect(lines[start].length).toBeLessThanOrEqual(ctx.cols);
+    expect(lines[start + 1].length).toBeLessThanOrEqual(ctx.cols);
+  });
+
+  it('adds nothing without the field or with an empty list', () => {
+    const ctx = layoutContext();
+    const base = texts(buildInvoice({ order, invoiceData }, ctx));
+    expect(texts(buildInvoice({ order, invoiceData: { ...invoiceData, iibbLegend: [] } }, ctx))).toEqual(base);
+  });
+
+  it('encodes the accents with the printer codepage', () => {
+    const ctx = layoutContext();
+    const blocks = buildInvoice({ order, invoiceData: { ...invoiceData, iibbLegend: ['ALÍCUOTA ISIB CABA 3,00%'] } }, ctx);
+    expect(Array.from(encodeDocument(blocks, ctx))).toContain(0xd6);
+  });
+});

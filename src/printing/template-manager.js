@@ -576,6 +576,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
         .replace('{{invoiceData.tipoDocReceptor}}', escapeHtml(invoiceData.tipoDocReceptorLabel))
         .replace('{{invoiceData.docReceptor}}', escapeHtml(invoiceData.docReceptorFormatted))
         .replace('{{invoiceData.condicionIvaReceptor}}', escapeHtml(invoiceData.condicionIvaReceptorLabel))
+        .replace('{{invoiceData.iibbLegend}}', (invoiceData.iibbLegend || []).map((line) => `<p class="iibb-legend" style="margin: 2px 0;">${escapeHtml(line)}</p>`).join(''))
         .replace('{{invoiceData.impIVA}}', formatPrice(Number(invoiceData.impIVA) || 0))
         .replace('{{invoiceData.otrosImpuestosNacionales}}', formatPrice(Number(invoiceData.otrosImpuestosNacionales) || 0))
         .replace('{{invoiceData.cae}}', escapeHtml(invoiceData.cae))

@@ -258,6 +258,8 @@ export function buildInvoice({ order, restaurant = {}, invoiceData = {} }, ctx) 
   doc.paragraph('Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)');
   doc.row('IVA Contenido', money(inv.impIVA));
   doc.row('Otros tributos nacionales indirectos', money(inv.otrosImpuestosNacionales));
+  // Resolved by the server when the voucher is issued: printed as it comes.
+  for (const line of inv.iibbLegend || []) doc.paragraph(line);
   if (inv.cae) {
     doc.feed(1);
     doc.qr(generateAfipQRCodeData(inv));
