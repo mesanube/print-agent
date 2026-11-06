@@ -418,6 +418,28 @@ export async function printOrder(data, printerName = null, timing = null) {
   return printHtml(html, effectivePrinter, timing);
 }
 
+const escapeHtml = (s) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+// Destination and data of the update chit: label on the left, value on the right,
+// same as the original comanda. Mirrored in text/documents.js buildOrderUpdate.
+export function updateChitHeaderHtml(order, now) {
+  const meta = (label, value) => `<div class="meta"><span>${label}</span><span>${escapeHtml(value)}</span></div>`;
+  const title = { delivery: 'DELIVERY', takeout: 'PARA LLEVAR', counter: 'MOSTRADOR' }[order.orderType];
+  const destination = title
+    ? `<div class="destination">-- ${title} --</div>` +
+      (order.deliveryName ? meta('Nombre:', order.deliveryName) : '') +
+      (order.orderType === 'delivery' && order.deliveryAddress ? meta('Dirección:', order.deliveryAddress) : '')
+    : meta('Mesa:', order.table || '--') + (order.deliveryName ? meta('Nombre:', order.deliveryName) : '');
+  return destination +
+    (order.callButton ? meta('Llamador:', order.callButton) : '') +
+    meta('Mesero:', order.waiter?.name || '--') +
+    meta('Hora:', now.toLocaleTimeString());
+}
+
 // Mirrored in text/documents.js buildOrderUpdate (text mode). Change both.
 /**
  * Print a kitchen UPDATE chit (Windows). Generates minimal inline HTML
@@ -431,12 +453,6 @@ export async function printOrderUpdate(data, printerName = null, timing = null) 
     return printText(buildOrderUpdate, { order, lines, restaurant: data.restaurant }, printerName, timing);
   }
   const now = new Date();
-
-  const escapeHtml = (s) =>
-    String(s ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
 
   const lineClass = (kind) => {
     if (kind === 'cancel') return 'line cancel';
@@ -507,37 +523,6 @@ export async function printOrderUpdate(data, printerName = null, timing = null) 
     })
     .join('\n');
 
-  // Order destination block: dine-in shows the table, delivery/takeout show
-  // a banner + customer name (mirrors the modern-order.html created chit).
-  let destinationHtml;
-  if (order.orderType === 'delivery') {
-    destinationHtml =
-      '<div class="destination">-- DELIVERY --</div>' +
-      (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '') +
-      (order.deliveryAddress ? `<div class="meta">Dirección: ${escapeHtml(order.deliveryAddress)}</div>` : '');
-  } else if (order.orderType === 'takeout') {
-    destinationHtml =
-      '<div class="destination">-- PARA LLEVAR --</div>' +
-      (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
-  } else if (order.orderType === 'counter') {
-    destinationHtml =
-      '<div class="destination">-- MOSTRADOR --</div>' +
-      (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
-  } else if (order.orderType === 'dine-in') {
-    // A dine-in order can carry a customer name too (MES-321).
-    destinationHtml =
-      `<div class="meta">Mesa: ${escapeHtml(order.table || '--')}</div>` +
-      (order.deliveryName ? `<div class="meta">Nombre: ${escapeHtml(order.deliveryName)}</div>` : '');
-  } else {
-    destinationHtml = `<div class="meta">Mesa: ${escapeHtml(order.table || '--')}</div>`;
-  }
-
-  // Llamador (Order.callButton): independent of the destination banner above,
-  // shown only when the payload actually includes it.
-  if (order.callButton) {
-    destinationHtml += `<div class="meta">Llamador: ${escapeHtml(order.callButton)}</div>`;
-  }
-
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -550,7 +535,8 @@ export async function printOrderUpdate(data, printerName = null, timing = null) 
     .header { background: #000; color: #fff; padding: 6px; text-align: center; }
     .header h2 { font-size: 22px; }
     .destination { border: 2px solid #000; padding: 6px 8px; margin: 8px 0; text-align: center; font-size: 16px; }
-    .meta { margin: 6px 0; }
+    .meta { margin: 6px 0; display: flex; justify-content: space-between; gap: 8px; }
+    .meta span:last-child { text-align: right; }
     .line { padding: 4px 0; border-bottom: 1px dashed #000; display: flex; gap: 6px; flex-wrap: wrap; }
     .line.cancel { background: #000; color: #fff; padding: 4px; }
     .mods { width: 100%; font-weight: normal; font-size: 14px; padding-left: 12px; }
@@ -577,9 +563,7 @@ export async function printOrderUpdate(data, printerName = null, timing = null) 
       <h2>** ACTUALIZACION **</h2>
       <h2>#${escapeHtml(order.dailyOrderNumber || '--')}</h2>
     </div>
-    ${destinationHtml}
-    <div class="meta">Mesero: ${escapeHtml(order.waiter?.name || '--')}</div>
-    <div class="meta">Hora: ${escapeHtml(now.toLocaleTimeString())}</div>
+    ${updateChitHeaderHtml(order, now)}
     <hr />
     ${linesHtml}
     <div class="footer">&nbsp;</div>

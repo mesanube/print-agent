@@ -149,6 +149,29 @@ describe('HTML and text renderers print the same information', () => {
     ]);
   });
 
+  it.each([
+    ['delivery', 'DELIVERY'],
+    ['counter', 'MOSTRADOR'],
+    ['takeout', 'PARA LLEVAR'],
+  ])('comanda de %s sin nombre: ambos muestran el tipo', async (orderType, title) => {
+    const noName = { ...order, table: undefined, orderType };
+    const html = await generateHtmlFromTemplate(noName, restaurant, 'modern-order.html', 'order');
+    expectInBoth(html, buildOrder({ order: noName, restaurant }, ctx), [`-- ${title} --`]);
+  });
+
+  it('ticket de mesa con nombre: ambos lo imprimen', async () => {
+    const named = { ...order, deliveryName: 'Juan' };
+    const html = await generateHtmlFromTemplate(named, restaurant, 'modern-receipt.html', 'receipt');
+    expectInBoth(html, buildReceipt({ order: named, restaurant }, ctx), ['Nombre:', 'Juan']);
+  });
+
+  it('un ticket de mostrador sin nombre no repite el tipo en un recuadro', async () => {
+    const counter = { ...order, table: undefined, orderType: 'counter' };
+    const html = await generateHtmlFromTemplate(counter, restaurant, 'modern-receipt.html', 'receipt');
+    expect(html).not.toContain('-- MOSTRADOR --');
+    expect(buildReceipt({ order: counter, restaurant }, ctx).map((b) => b.text).join('\n')).not.toContain('-- MOSTRADOR --');
+  });
+
   const sales = {
     total: 50000, totalDiscounts: 5000, grossRevenue: 55000, discountCount: 3,
     byMethod: [{ name: 'cash', total: 30000 }, { name: 'Mercado Pago', total: 20000 }],

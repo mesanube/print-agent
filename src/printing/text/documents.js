@@ -105,6 +105,15 @@ class DocBuilder {
     return this.lines(twoColumns(left, right, this.ctx.cols), style);
   }
 
+  // A row whose value may not fit next to its label (a long name or address):
+  // the label takes its own line and the value wraps below it, still on the right.
+  field(label, value, style = {}) {
+    const { cols } = this.ctx;
+    const text = String(value ?? '');
+    if (label.length + 1 + text.length <= cols) return this.row(label, text, style);
+    return this.lines([label, ...wrap(text, cols).map((l) => l.padStart(cols))], style);
+  }
+
   rule(char = '-') {
     return this.line(rule(this.ctx.cols, char), { height: 1 });
   }
@@ -152,23 +161,27 @@ const soldItems = (order) => (order?.items || []).filter((item) => (item.quantit
 const itemName = (item) => item.menuItem?.name || item.name || 'Unknown Item';
 const itemPrice = (item) => Number(item.menuItem?.price || item.price || 0);
 
-// Delivery / para llevar / mostrador banner, shared by every order document.
-function destinationBanner(doc, order) {
-  const banner = (title) => doc.centered(`-- ${title} --`, { bold: true });
-  if (order.orderType === 'delivery' && (order.deliveryName || order.deliveryAddress)) {
-    banner('DELIVERY');
-    if (order.deliveryName) doc.paragraph(`Nombre: ${order.deliveryName}`, { bold: true });
-    if (order.deliveryAddress) doc.paragraph(`Dirección: ${order.deliveryAddress}`, { bold: true });
-  } else if (order.orderType === 'takeout' && order.deliveryName) {
-    banner('PARA LLEVAR');
-    doc.paragraph(`Nombre: ${order.deliveryName}`, { bold: true });
-  } else if (order.orderType === 'counter' && order.deliveryName) {
-    banner('MOSTRADOR');
-    doc.paragraph(`Nombre: ${order.deliveryName}`, { bold: true });
-  } else {
-    return;
-  }
+const DESTINATION_TITLES = { delivery: 'DELIVERY', takeout: 'PARA LLEVAR', counter: 'MOSTRADOR' };
+
+// Banner title plus customer data of a delivery / para llevar / mostrador order.
+function destinationDetails(doc, order) {
+  doc.centered(`-- ${DESTINATION_TITLES[order.orderType]} --`, { bold: true });
+  if (order.deliveryName) doc.field('Nombre:', order.deliveryName, { bold: true });
+  if (order.orderType === 'delivery' && order.deliveryAddress) doc.field('Dirección:', order.deliveryAddress, { bold: true });
+}
+
+// The kitchen always needs the order type. A ticket already says it on its Mesa
+// row, so it only takes the banner when there is customer data to show.
+function destinationBanner(doc, order, { always = false } = {}) {
+  if (!DESTINATION_TITLES[order.orderType]) return;
+  if (!always && !order.deliveryName && !(order.orderType === 'delivery' && order.deliveryAddress)) return;
+  destinationDetails(doc, order);
   doc.rule();
+}
+
+// Name of an order without a banner to carry it (dine-in).
+function customerNameRow(doc, order) {
+  if (order.deliveryName && !DESTINATION_TITLES[order.orderType]) doc.field('Nombre:', order.deliveryName, { bold: true });
 }
 
 function customerItems(doc, order) {
@@ -197,6 +210,7 @@ export function buildReceipt({ order = {}, restaurant = {} }, ctx) {
   doc.rule();
   const table = order.table || (order.orderType === 'delivery' ? 'Delivery' : order.orderType === 'counter' ? 'Mostrador' : 'Para llevar');
   doc.row('Mesa:', table);
+  customerNameRow(doc, order);
   doc.row('Mesero:', order.waiter?.name || '--');
   doc.row('Fecha:', fmtDate(order.createdAt));
   doc.row('Hora:', fmtTime(order.createdAt));
@@ -260,14 +274,14 @@ export function buildOrder({ order = {} }, ctx) {
   doc.centered(`#${order.dailyOrderNumber || order.orderNumber || '--'}`, { bold: true, width: 2, height: 2 });
   doc.rule();
   if (order.table) doc.row('Mesa:', String(order.table), { bold: true });
-  if (order.orderType === 'dine-in' && order.deliveryName) doc.row('Nombre:', order.deliveryName, { bold: true });
-  if (order.callButton) doc.row('Llamador:', String(order.callButton), { bold: true });
+  customerNameRow(doc, order);
+  if (order.callButton) doc.field('Llamador:', order.callButton, { bold: true });
   doc.row('Mesero:', order.waiter?.name || '--');
   const now = new Date();
   doc.row('Fecha:', now.toLocaleDateString());
   doc.row('Hora:', now.toLocaleTimeString());
   doc.rule();
-  destinationBanner(doc, order);
+  destinationBanner(doc, order, { always: true });
   for (const item of soldItems(order)) {
     doc.paragraph(`${Number(item.quantity || 1)}x ${itemName(item)}`, { bold: true });
     if (item.note) doc.paragraph(`Nota: ${item.note}`, { bold: true });
@@ -297,23 +311,15 @@ export function buildOrderUpdate({ order = {}, lines = [] }, ctx) {
   const doc = new DocBuilder(ctx);
   doc.centered('** ACTUALIZACION **', { bold: true, invert: true, height: 2 });
   doc.centered(`#${order.dailyOrderNumber || '--'}`, { bold: true, width: 2, height: 2 });
-  if (order.orderType === 'delivery') {
-    doc.centered('-- DELIVERY --', { bold: true });
-    if (order.deliveryName) doc.paragraph(`Nombre: ${order.deliveryName}`, { bold: true });
-    if (order.deliveryAddress) doc.paragraph(`Dirección: ${order.deliveryAddress}`, { bold: true });
-  } else if (order.orderType === 'takeout') {
-    doc.centered('-- PARA LLEVAR --', { bold: true });
-    if (order.deliveryName) doc.paragraph(`Nombre: ${order.deliveryName}`, { bold: true });
-  } else if (order.orderType === 'counter') {
-    doc.centered('-- MOSTRADOR --', { bold: true });
-    if (order.deliveryName) doc.paragraph(`Nombre: ${order.deliveryName}`, { bold: true });
+  if (DESTINATION_TITLES[order.orderType]) {
+    destinationDetails(doc, order);
   } else {
-    doc.paragraph(`Mesa: ${order.table || '--'}`, { bold: true });
-    if (order.orderType === 'dine-in' && order.deliveryName) doc.paragraph(`Nombre: ${order.deliveryName}`, { bold: true });
+    doc.field('Mesa:', order.table || '--', { bold: true });
+    customerNameRow(doc, order);
   }
-  if (order.callButton) doc.paragraph(`Llamador: ${order.callButton}`, { bold: true });
-  doc.paragraph(`Mesero: ${order.waiter?.name || '--'}`);
-  doc.paragraph(`Hora: ${new Date().toLocaleTimeString()}`);
+  if (order.callButton) doc.field('Llamador:', order.callButton, { bold: true });
+  doc.field('Mesero:', order.waiter?.name || '--');
+  doc.row('Hora:', new Date().toLocaleTimeString());
   doc.rule();
 
   for (const line of Array.isArray(lines) ? lines : []) {
