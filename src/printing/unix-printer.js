@@ -43,6 +43,15 @@ async function printWithSystemCommand(text, printerName) {
   }
 }
 
+// Banner and customer data of a delivery / para llevar / mostrador order, or ''.
+function destinationBannerText(order) {
+  const title = { delivery: 'DELIVERY', takeout: 'PARA LLEVAR', counter: 'MOSTRADOR' }[order.orderType];
+  if (!title) return '';
+  return `-- ${title} --\n` +
+    (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '') +
+    (order.orderType === 'delivery' && order.deliveryAddress ? `Dirección: ${order.deliveryAddress}\n` : '');
+}
+
 export async function printReceipt(data, printerName = null) {
   const selectedPrinter = printerName || getSelectedPrinter();
   if (!selectedPrinter) {
@@ -59,7 +68,7 @@ ${restaurant?.address || ''}
 ================
 
 Table: ${orderData.table || '--'}
-Waiter: ${orderData.waiter?.name || '--'}
+${orderData.deliveryName ? `Nombre: ${orderData.deliveryName}\n` : ''}Waiter: ${orderData.waiter?.name || '--'}
 Date: ${now.toLocaleDateString()}
 Time: ${now.toLocaleTimeString()}
 
@@ -114,7 +123,9 @@ export async function printOrder(data, printerName = null) {
   headerLines.push(`Mesero: ${orderData.waiter?.name || '--'}`);
   headerLines.push(`Fecha: ${now.toLocaleDateString()}`);
   headerLines.push(`Hora: ${now.toLocaleTimeString()}`);
-  if (orderData.deliveryName) headerLines.push(`Nombre: ${orderData.deliveryName}`);
+  const banner = destinationBannerText(orderData);
+  if (banner) headerLines.unshift(banner.trimEnd());
+  else if (orderData.deliveryName) headerLines.push(`Nombre: ${orderData.deliveryName}`);
 
   let orderText = `
 ================
@@ -179,29 +190,9 @@ export async function printOrderUpdate(data, printerName = null) {
     return `+${qty}x ${name}${modifiers}`;
   };
 
-  // Order destination: dine-in shows the table, delivery/takeout show
-  // a banner + customer name (mirrors the modern-order.html created chit).
-  let destinationText;
-  if (order.orderType === 'delivery') {
-    destinationText =
-      '-- DELIVERY --\n' +
-      (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '') +
-      (order.deliveryAddress ? `Dirección: ${order.deliveryAddress}\n` : '');
-  } else if (order.orderType === 'takeout') {
-    destinationText =
-      '-- PARA LLEVAR --\n' +
-      (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
-  } else if (order.orderType === 'counter') {
-    destinationText =
-      '-- MOSTRADOR --\n' +
-      (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
-  } else if (order.orderType === 'dine-in') {
-    // A dine-in order can carry a customer name too (MES-321).
-    destinationText =
-      `Mesa: ${order.table || '--'}\n` +
-      (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
-  } else {
-    destinationText = `Mesa: ${order.table || '--'}\n`;
+  let destinationText = destinationBannerText(order);
+  if (!destinationText) {
+    destinationText = `Mesa: ${order.table || '--'}\n` + (order.deliveryName ? `Nombre: ${order.deliveryName}\n` : '');
   }
 
   // Llamador (Order.callButton): independent of the destination text above,

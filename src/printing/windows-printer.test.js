@@ -43,7 +43,7 @@ vi.mock('./transports/gdi-transport.js', () => ({ printBitmap: printBitmapGdi })
 const writeRaw = vi.fn();
 vi.mock('./transports/raw-transport.js', () => ({ printBitmap: vi.fn(), writeRaw }));
 
-const { printReceipt, printInvoice, printOrder, printOrderUpdate, printCashClose, printDayZ } = await import('./windows-printer.js');
+const { printReceipt, printInvoice, printOrder, printOrderUpdate, printCashClose, printDayZ, updateChitHeaderHtml } = await import('./windows-printer.js');
 
 const receipt = { order: { items: [{ name: 'Cafe', price: 1500, quantity: 1 }], orderTotal: 1500 }, restaurant: { name: 'Bar' } };
 
@@ -134,5 +134,15 @@ describe('text path details', () => {
     await printReceipt(receipt, 'Caja');
     const bytes = Array.from(writeRaw.mock.calls[0][1]);
     expect(bytes.some((byte, index) => byte === 0x1b && bytes[index + 1] === 0x74 && bytes[index + 2] === 0)).toBe(true);
+  });
+});
+
+describe('update chit header in image mode', () => {
+  it('splits every datum into a label and a value, like the original comanda', () => {
+    const html = updateChitHeaderHtml({ orderType: 'delivery', deliveryName: 'JUAN', deliveryAddress: 'Roca 1', callButton: 'B1', waiter: { name: 'Ana' } }, new Date());
+    for (const [label, value] of [['Nombre:', 'JUAN'], ['Dirección:', 'Roca 1'], ['Llamador:', 'B1'], ['Mesero:', 'Ana']]) {
+      expect(html).toContain(`<div class="meta"><span>${label}</span><span>${value}</span></div>`);
+    }
+    expect(html).toContain('-- DELIVERY --');
   });
 });
