@@ -491,3 +491,76 @@ describe('location text size', () => {
     }
   });
 });
+
+describe('order identity', () => {
+  const ctx = layoutContext({ paper: '80mm' });
+  const textOf = (blocks) => blocks.filter((b) => b.type === 'text' || b.text !== undefined).map((b) => b.text);
+  const update = (order) => textOf(buildOrderUpdate({ order, lines: [] }, ctx));
+  const isRow = (line, label, value) => line.startsWith(label) && line.endsWith(value) && line.length === ctx.cols;
+
+  it.each([
+    ['delivery', 'DELIVERY'],
+    ['counter', 'MOSTRADOR'],
+    ['takeout', 'PARA LLEVAR'],
+  ])('the comanda names a %s order even without a customer name', (orderType, title) => {
+    expect(textOf(buildOrder({ order: { orderType } }, ctx)).join('\n')).toContain(`-- ${title} --`);
+  });
+
+  it('the ticket prints the customer name of a dine-in order', () => {
+    const lines = textOf(buildReceipt({ order: { orderType: 'dine-in', table: '4', deliveryName: 'JUAN' } }, ctx));
+    expect(lines.some((l) => isRow(l, 'Nombre:', 'JUAN'))).toBe(true);
+  });
+
+  it('the update chit puts every label left and every value right', () => {
+    const lines = update({ orderType: 'dine-in', table: '4', deliveryName: 'JUAN', callButton: 'B1', waiter: { name: 'Ana' } });
+    for (const [label, value] of [['Mesa:', '4'], ['Nombre:', 'JUAN'], ['Llamador:', 'B1'], ['Mesero:', 'Ana']]) {
+      expect(lines.some((l) => isRow(l, label, value))).toBe(true);
+    }
+    expect(lines.some((l) => l.startsWith('Hora:') && l.length === ctx.cols)).toBe(true);
+  });
+
+  it('the delivery banner aligns its data the same way', () => {
+    const order = { orderType: 'delivery', deliveryName: 'JUAN', deliveryAddress: 'Roca 1' };
+    for (const lines of [update(order), textOf(buildOrder({ order }, ctx))]) {
+      expect(lines.some((l) => isRow(l, 'Nombre:', 'JUAN'))).toBe(true);
+      expect(lines.some((l) => isRow(l, 'Dirección:', 'Roca 1'))).toBe(true);
+    }
+  });
+
+  it('a value longer than the paper wraps inside it, right aligned', () => {
+    const deliveryAddress = 'Avenida del Libertador General San Martin 12345 piso 8 departamento B';
+    const lines = textOf(buildOrder({ order: { orderType: 'delivery', deliveryAddress } }, ctx));
+    const start = lines.indexOf('Dirección:');
+    expect(start).toBeGreaterThan(-1);
+    expect(lines.every((l) => l.length <= ctx.cols)).toBe(true);
+    expect(lines[start + 1].length).toBe(ctx.cols);
+  });
+});
+
+describe('buildInvoice IIBB legend', () => {
+  const order = { items: [{ name: 'Cafe', price: 1000, quantity: 1 }], orderTotal: 1000 };
+  const promotion = 'OPERACIÓN ALCANZADA POR REGÍMENES DE PROMOCIÓN ECONÓMICA CABA';
+
+  it('wraps a long line inside 58 mm paper', () => {
+    const ctx = layoutContext({ paper: '58mm' });
+    const blocks = buildInvoice({ order, invoiceData: { ...invoiceData, iibbLegend: [promotion] } }, ctx);
+    const lines = texts(blocks);
+    expect(lines.join(' ').replace(/\s+/g, ' ')).toContain(promotion);
+    const start = lines.findIndex((t) => t.startsWith('OPERACIÓN'));
+    expect(start).toBeGreaterThan(-1);
+    expect(lines[start].length).toBeLessThanOrEqual(ctx.cols);
+    expect(lines[start + 1].length).toBeLessThanOrEqual(ctx.cols);
+  });
+
+  it('adds nothing without the field or with an empty list', () => {
+    const ctx = layoutContext();
+    const base = texts(buildInvoice({ order, invoiceData }, ctx));
+    expect(texts(buildInvoice({ order, invoiceData: { ...invoiceData, iibbLegend: [] } }, ctx))).toEqual(base);
+  });
+
+  it('encodes the accents with the printer codepage', () => {
+    const ctx = layoutContext();
+    const blocks = buildInvoice({ order, invoiceData: { ...invoiceData, iibbLegend: ['ALÍCUOTA ISIB CABA 3,00%'] } }, ctx);
+    expect(Array.from(encodeDocument(blocks, ctx))).toContain(0xd6);
+  });
+});

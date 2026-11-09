@@ -476,45 +476,35 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
       ? new Date()
       : new Date(receiptType === 'invoice' ? invoiceTicketDate(orderData, invoiceData) : orderData.createdAt);
 
-    // Build delivery info block — shown on all print types when order is delivery
+    // Order-type banner. The kitchen always needs it; a customer document already
+    // says the type on its Mesa row, so it only takes the banner when there is
+    // customer data to show.
+    const bannerTitle = { delivery: 'DELIVERY', takeout: 'PARA LLEVAR', counter: 'MOSTRADOR' }[orderData.orderType];
+    const bannerAddress = orderData.orderType === 'delivery' ? orderData.deliveryAddress : null;
+    const bannerRow = (label, value) =>
+      `<div style="display: flex; justify-content: space-between; gap: 8px;"><span>${label}</span><span style="text-align: right;">${escapeHtml(value)}</span></div>`;
     let deliveryInfoHtml = '';
-    if (orderData.orderType === 'delivery' && (orderData.deliveryName || orderData.deliveryAddress)) {
+    if (bannerTitle && (receiptType === 'order' || orderData.deliveryName || bannerAddress)) {
       deliveryInfoHtml =
         '<div style="border: 2px solid #000; padding: 6px 8px; margin: 8px 0; font-weight: bolder;">' +
-        '<div style="margin-bottom: 4px; font-size: 15px;">-- DELIVERY --</div>' +
-        (orderData.deliveryName ? `<div>Nombre: ${escapeHtml(orderData.deliveryName)}</div>` : '') +
-        (orderData.deliveryAddress ? `<div>Direcci\u00f3n: ${escapeHtml(orderData.deliveryAddress)}</div>` : '') +
-        '</div>';
-    } else if (orderData.orderType === 'takeout' && orderData.deliveryName) {
-      deliveryInfoHtml =
-        '<div style="border: 2px solid #000; padding: 6px 8px; margin: 8px 0; font-weight: bolder;">' +
-        '<div style="margin-bottom: 4px; font-size: 15px;">-- PARA LLEVAR --</div>' +
-        `<div>Nombre: ${escapeHtml(orderData.deliveryName)}</div>` +
-        '</div>';
-    } else if (orderData.orderType === 'counter' && orderData.deliveryName) {
-      deliveryInfoHtml =
-        '<div style="border: 2px solid #000; padding: 6px 8px; margin: 8px 0; font-weight: bolder;">' +
-        '<div style="margin-bottom: 4px; font-size: 15px;">-- MOSTRADOR --</div>' +
-        `<div>Nombre: ${escapeHtml(orderData.deliveryName)}</div>` +
+        `<div style="margin-bottom: 4px; font-size: 15px;">-- ${bannerTitle} --</div>` +
+        (orderData.deliveryName ? bannerRow('Nombre:', orderData.deliveryName) : '') +
+        (bannerAddress ? bannerRow('Direcci\u00f3n:', bannerAddress) : '') +
         '</div>';
     }
 
     // Mesa row (kitchen comanda only): its own conditional row so a table-less
-    // order (delivery/takeout/mostrador) renders nothing here instead of a
-    // fallback label -- the delivery/mostrador banner below already says what
-    // kind of order this is, so a "Mesa: Mostrador" line would be redundant.
-    // {{order.table}} (used by the customer receipt templates) keeps its own
-    // type-based fallback text below; this row is comanda-specific.
+    // order renders nothing here instead of a fallback label; the banner above
+    // already says what kind of order this is. {{order.table}} (used by the
+    // customer receipt templates) keeps its own type-based fallback text below.
     let tableRowHtml = '';
     if (receiptType === 'order' && orderData.table) {
       tableRowHtml = `<tr><td class="label">Mesa:</td><td class="value">${escapeHtml(orderData.table)}</td></tr>`;
     }
-    // A dine-in order can carry a customer name (MES-321). It rides right
-    // under the Mesa row, on the comanda only; the customer receipt is
-    // unchanged. Other order types already print the name in their banner.
-    if (receiptType === 'order' && orderData.orderType === 'dine-in' && orderData.deliveryName) {
-      tableRowHtml += `<tr><td class="label">Nombre:</td><td class="value">${escapeHtml(orderData.deliveryName)}</td></tr>`;
-    }
+    // A customer name with no banner to carry it (dine-in) gets a row of its own.
+    const customerNameRowHtml = orderData.deliveryName && !bannerTitle
+      ? `<tr><td class="label">Nombre:</td><td class="value">${escapeHtml(orderData.deliveryName)}</td></tr>`
+      : '';
 
     // Llamador (Order.callButton): a buzzer/caller number handed to the
     // customer, usable on dine-in and mostrador orders. Kitchen-comanda only
@@ -554,6 +544,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
       .replace('{{restaurant.address}}', escapeHtml(restaurantData?.address || ''))
       .replace('{{order.table}}', escapeHtml(orderData.table || (orderData.orderType == 'delivery' ? 'Delivery' : orderData.orderType == 'counter' ? 'Mostrador' : 'Para llevar')))
       .replace('{{order.tableRow}}', tableRowHtml)
+      .replace('{{order.customerNameRow}}', customerNameRowHtml)
       .replace('{{order.callButtonRow}}', callButtonRowHtml)
       .replace('{{order.waiter}}', escapeHtml(orderData.waiter?.name || '--'))
       .replace('{{order.date}}', escapeHtml(orderDate.toLocaleDateString()))
@@ -585,6 +576,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
         .replace('{{invoiceData.tipoDocReceptor}}', escapeHtml(invoiceData.tipoDocReceptorLabel))
         .replace('{{invoiceData.docReceptor}}', escapeHtml(invoiceData.docReceptorFormatted))
         .replace('{{invoiceData.condicionIvaReceptor}}', escapeHtml(invoiceData.condicionIvaReceptorLabel))
+        .replace('{{invoiceData.iibbLegend}}', (invoiceData.iibbLegend || []).map((line) => `<p class="iibb-legend" style="margin: 2px 0;">${escapeHtml(line)}</p>`).join(''))
         .replace('{{invoiceData.impIVA}}', formatPrice(Number(invoiceData.impIVA) || 0))
         .replace('{{invoiceData.otrosImpuestosNacionales}}', formatPrice(Number(invoiceData.otrosImpuestosNacionales) || 0))
         .replace('{{invoiceData.cae}}', escapeHtml(invoiceData.cae))

@@ -134,6 +134,40 @@ describe('HTML and text renderers print the same information', () => {
     expect(htmlText(html)).not.toContain('{{');
   }, 20000);
 
+  const legendInvoice = {
+    razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisor: '30712345678',
+    docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '901-123', inicioActividadEmisor: '01/01/2020',
+    condicionIvaEmisorLabel: 'Responsable Inscripto', tipoComprobanteLabel: 'Factura B', tipoComprobante: 6,
+    razonSocialReceptor: 'Consumidor Final', tipoDocReceptorLabel: 'DNI', docReceptorFormatted: '0',
+    condicionIvaReceptorLabel: 'IVA Consumidor Final', puntoVenta: 3, numeroComprobante: 1234, impIVA: 4217.36,
+    otrosImpuestosNacionales: 0, cae: '74123456789012', vencimientoCAEFormatted: '10/10/2026',
+    fechaEmision: '2026-09-29', total: 24300,
+  };
+
+  it('factura con leyenda de IIBB: ambos imprimen las líneas, antes del QR', async () => {
+    const iibbLegend = ['ALÍCUOTA ISIB CABA 3,00%', 'APLICABLE SOBRE INGRESOS BRUTOS ATRIBUIDOS A CABA'];
+    const data = { ...legendInvoice, iibbLegend };
+    const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', 'invoice', data);
+    const blocks = buildInvoice({ order, restaurant, invoiceData: data }, ctx);
+    expectInBoth(html, blocks, iibbLegend);
+    expect(html.indexOf(iibbLegend[0])).toBeLessThan(html.indexOf('<div class="qr-section">'));
+    expect(html.indexOf(iibbLegend[0])).toBeGreaterThan(html.indexOf('Otros tributos nacionales indirectos'));
+    const firstLine = blocks.findIndex((b) => b.text === iibbLegend[0]);
+    expect(firstLine).toBeGreaterThan(-1);
+    expect(firstLine).toBeLessThan(blocks.findIndex((b) => b.type === 'qr'));
+  });
+
+  it('factura sin leyenda: no agrega nada ni deja el marcador', async () => {
+    const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', 'invoice', legendInvoice);
+    expect(html).not.toContain('{{invoiceData.iibbLegend}}');
+    expect(html).not.toContain('iibb-legend');
+  });
+
+  it('la leyenda queda escapada en la imagen', async () => {
+    const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', 'invoice', { ...legendInvoice, iibbLegend: ['A <b>B</b>'] });
+    expect(html).toContain('A &lt;b&gt;B&lt;/b&gt;');
+  });
+
   it('factura sin pedido: both renderers fail with the same clear message', async () => {
     await expect(generateHtmlFromTemplate(null, restaurant, 'modern-invoice.html', 'invoice', {})).rejects.toThrow('Falta el pedido del comprobante');
     expect(() => buildInvoice({ order: null, restaurant, invoiceData: {} }, ctx)).toThrow('Falta el pedido del comprobante');
@@ -147,6 +181,29 @@ describe('HTML and text renderers print the same information', () => {
       '#42', 'Mesa:', 'Nombre:', 'Juan', 'Llamador:', 'B12', 'Mesero:', 'Ana',
       '2x', 'Milanesa napolitana', 'Nota:', 'sin sal', '1x', 'Coca', 'NOTAS:', 'apurar la mesa',
     ]);
+  });
+
+  it.each([
+    ['delivery', 'DELIVERY'],
+    ['counter', 'MOSTRADOR'],
+    ['takeout', 'PARA LLEVAR'],
+  ])('comanda de %s sin nombre: ambos muestran el tipo', async (orderType, title) => {
+    const noName = { ...order, table: undefined, orderType };
+    const html = await generateHtmlFromTemplate(noName, restaurant, 'modern-order.html', 'order');
+    expectInBoth(html, buildOrder({ order: noName, restaurant }, ctx), [`-- ${title} --`]);
+  });
+
+  it('ticket de mesa con nombre: ambos lo imprimen', async () => {
+    const named = { ...order, deliveryName: 'Juan' };
+    const html = await generateHtmlFromTemplate(named, restaurant, 'modern-receipt.html', 'receipt');
+    expectInBoth(html, buildReceipt({ order: named, restaurant }, ctx), ['Nombre:', 'Juan']);
+  });
+
+  it('un ticket de mostrador sin nombre no repite el tipo en un recuadro', async () => {
+    const counter = { ...order, table: undefined, orderType: 'counter' };
+    const html = await generateHtmlFromTemplate(counter, restaurant, 'modern-receipt.html', 'receipt');
+    expect(html).not.toContain('-- MOSTRADOR --');
+    expect(buildReceipt({ order: counter, restaurant }, ctx).map((b) => b.text).join('\n')).not.toContain('-- MOSTRADOR --');
   });
 
   const sales = {
