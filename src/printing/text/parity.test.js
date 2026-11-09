@@ -75,6 +75,36 @@ describe('HTML and text renderers print the same information', () => {
     expect(htmlText(html)).not.toContain('Anulado');
   });
 
+  // RG 1415, Anexo II, Apartado A, I), a), 5: a monotributista prints "Responsable Monotributo",
+  // never "IVA Monotributo".
+  it('factura de un monotributista imprime su propia leyenda sin el prefijo IVA', async () => {
+    const invoiceData = {
+      razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisorFormatted: '20123456786',
+      ingresosBrutosEmisor: '', inicioActividadEmisor: '01/01/2020',
+      condicionIvaEmisorLabel: 'Monotributo', condicionIvaEmisorLegend: 'Responsable Monotributo',
+      tipoComprobanteLabel: 'Factura C', tipoComprobante: 11, razonSocialReceptor: 'Consumidor Final',
+      tipoDocReceptorLabel: 'DNI', docReceptorFormatted: '0', condicionIvaReceptorLabel: 'Consumidor Final',
+      puntoVenta: 3, numeroComprobante: 1, cae: '74123456789012', vencimientoCAEFormatted: '10/10/2026',
+      fechaEmision: '2026-09-29', total: 24300,
+    };
+    const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', 'invoice', invoiceData);
+    const blocks = buildInvoice({ order, restaurant, invoiceData }, ctx);
+    expectInBoth(html, blocks, ['Responsable Monotributo']);
+    expect(htmlText(html)).not.toContain('IVA Monotributo');
+    expect(blocksText(blocks)).not.toContain('IVA Monotributo');
+  }, 20000);
+
+  // A POS that predates condicionIvaEmisorLegend only sends the label.
+  it('factura de un POS sin leyenda cae en el prefijo IVA de siempre', async () => {
+    const invoiceData = {
+      razonSocialEmisor: 'Pentos SRL', docEmisorFormatted: '30-71234567-8', condicionIvaEmisorLabel: 'Responsable Inscripto',
+      tipoComprobanteLabel: 'Factura B', tipoComprobante: 6, puntoVenta: 3, numeroComprobante: 1,
+      fechaEmision: '2026-09-29', total: 100,
+    };
+    const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', 'invoice', invoiceData);
+    expectInBoth(html, buildInvoice({ order, restaurant, invoiceData }, ctx), ['IVA Responsable Inscripto']);
+  }, 20000);
+
   it('factura', async () => {
     const invoiceData = {
       razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisor: '30712345678',
