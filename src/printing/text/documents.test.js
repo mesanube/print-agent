@@ -11,7 +11,7 @@ const has = (blocks, fragment) => texts(blocks).some((t) => t.includes(fragment)
 
 const invoiceData = {
   razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisor: '30712345678',
-  docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '123', inicioActividadEmisor: '01/01/2020',
+  docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '123', inicioActividadEmisor: '20200101',
   condicionIvaEmisorLabel: 'Responsable Inscripto', tipoComprobanteLabel: 'Factura B', tipoComprobante: 6,
   // Shapes as the server stores them (invoicing.controller.js): AFIP's
   // YYYYMMDD CbteFch, string CUIT and receiver document fields.

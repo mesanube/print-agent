@@ -61,3 +61,11 @@ export function invoiceTicketDate(order, invoiceData) {
 export function issuerIvaLegend(invoiceData) {
   return invoiceData.condicionIvaEmisorLegend || `IVA ${invoiceData.condicionIvaEmisorLabel || ''}`;
 }
+
+// AFIP dates travel as AAAAMMDD (the issuer's inicio de actividades does, unformatted). Anything
+// else, such as an already formatted date, prints as it came.
+export function formatAfipDate(value) {
+  const str = String(value ?? '');
+  return /^\d{8}$/.test(str) ? `${str.slice(6, 8)}/${str.slice(4, 6)}/${str.slice(0, 4)}` : str;
+}
+
