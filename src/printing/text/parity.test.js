@@ -80,7 +80,7 @@ describe('HTML and text renderers print the same information', () => {
   it('factura de un monotributista imprime su propia leyenda sin el prefijo IVA', async () => {
     const invoiceData = {
       razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisorFormatted: '20123456786',
-      ingresosBrutosEmisor: '', inicioActividadEmisor: '01/01/2020',
+      ingresosBrutosEmisor: '', inicioActividadEmisor: '20200101',
       condicionIvaEmisorLabel: 'Monotributo', condicionIvaEmisorLegend: 'Responsable Monotributo',
       tipoComprobanteLabel: 'Factura C', tipoComprobante: 11, razonSocialReceptor: 'Consumidor Final',
       tipoDocReceptorLabel: 'DNI', docReceptorFormatted: '0', condicionIvaReceptorLabel: 'Consumidor Final',
@@ -108,7 +108,7 @@ describe('HTML and text renderers print the same information', () => {
   it('factura', async () => {
     const invoiceData = {
       razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisor: '30712345678',
-      docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '901-123', inicioActividadEmisor: '01/01/2020',
+      docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '901-123', inicioActividadEmisor: '20200101',
       condicionIvaEmisorLabel: 'Responsable Inscripto', tipoComprobanteLabel: 'Factura B', tipoComprobante: 6,
       razonSocialReceptor: 'Consumidor Final', tipoDocReceptorLabel: 'DNI', docReceptorFormatted: '0',
       condicionIvaReceptorLabel: 'IVA Consumidor Final', puntoVenta: 3, numeroComprobante: 1234, impIVA: 4217.36,
@@ -131,7 +131,7 @@ describe('HTML and text renderers print the same information', () => {
   it('nota de crédito', async () => {
     const invoiceData = {
       razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisor: '30712345678',
-      docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '901-123', inicioActividadEmisor: '01/01/2020',
+      docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '901-123', inicioActividadEmisor: '20200101',
       condicionIvaEmisorLabel: 'Responsable Inscripto', tipoComprobanteLabel: 'NOTA DE CRÉDITO B', tipoComprobante: 8,
       razonSocialReceptor: 'Consumidor Final', tipoDocReceptorLabel: 'DNI', docReceptorFormatted: '0',
       condicionIvaReceptorLabel: 'IVA Consumidor Final', puntoVenta: 3, numeroComprobante: 5, impIVA: 4217.36,
@@ -166,7 +166,7 @@ describe('HTML and text renderers print the same information', () => {
 
   const legendInvoice = {
     razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisor: '30712345678',
-    docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '901-123', inicioActividadEmisor: '01/01/2020',
+    docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '901-123', inicioActividadEmisor: '20200101',
     condicionIvaEmisorLabel: 'Responsable Inscripto', tipoComprobanteLabel: 'Factura B', tipoComprobante: 6,
     razonSocialReceptor: 'Consumidor Final', tipoDocReceptorLabel: 'DNI', docReceptorFormatted: '0',
     condicionIvaReceptorLabel: 'IVA Consumidor Final', puntoVenta: 3, numeroComprobante: 1234, impIVA: 4217.36,

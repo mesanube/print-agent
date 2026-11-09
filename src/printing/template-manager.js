@@ -9,7 +9,7 @@ import {
   generateAfipQRCodePngHTML,
 } from './qrcode-generator.js';
 import { getLogoAsBase64 } from '../shared/file-helpers.js';
-import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate, issuerIvaLegend } from './receipt-format.js';
+import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate, issuerIvaLegend, formatAfipDate } from './receipt-format.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -567,7 +567,7 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
         .replace('{{invoiceData.numeroComprobante}}', escapeHtml(String(invoiceData.numeroComprobante).padStart(8, '0')))
         .replace('{{invoiceData.domicilioEmisor}}', escapeHtml(invoiceData.domicilioEmisor))
         .replace('{{invoiceData.ingresosBrutosEmisor}}', escapeHtml(invoiceData.ingresosBrutosEmisor))
-        .replace('{{invoiceData.inicioActividadEmisor}}', escapeHtml(invoiceData.inicioActividadEmisor))
+        .replace('{{invoiceData.inicioActividadEmisor}}', escapeHtml(formatAfipDate(invoiceData.inicioActividadEmisor)))
         .replace('{{invoiceData.condicionIvaEmisor}}', escapeHtml(issuerIvaLegend(invoiceData)))
         .replace('{{invoiceData.associatedInvoiceLine}}', associatedLineHtml)
         .replace('{{invoiceData.tipoComprobanteLabel}}', escapeHtml(invoiceData.tipoComprobanteLabel))
