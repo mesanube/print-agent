@@ -15,7 +15,7 @@
 // length prints whole (R8).
 
 import { columnsFor, dotsFor, twoColumns, wrap, center, rule } from './layout.js';
-import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate } from '../receipt-format.js';
+import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate, issuerIvaLegend } from '../receipt-format.js';
 import { generateAfipQRCodeData } from '../qrcode-generator.js';
 
 const money = (amount, { negative = false } = {}) =>
@@ -239,7 +239,7 @@ export function buildInvoice({ order, restaurant = {}, invoiceData = {} }, ctx) 
   doc.paragraph(`CUIT: ${inv.docEmisorFormatted || ''}`);
   doc.paragraph(`IIBB: ${inv.ingresosBrutosEmisor || ''}`);
   doc.paragraph(`Inicio de Actividades: ${inv.inicioActividadEmisor || ''}`);
-  doc.paragraph(`IVA ${inv.condicionIvaEmisorLabel || ''}`);
+  doc.paragraph(issuerIvaLegend(inv));
   doc.paragraph(`Fecha: ${fmtDate(invoiceTicketDate(order, inv))}`);
   doc.paragraph(`Hora: ${fmtTime(invoiceTicketDate(order, inv))}`);
   doc.paragraph(`Comprobante: ${String(inv.puntoVenta ?? '').padStart(4, '0')}-${String(inv.numeroComprobante ?? '').padStart(8, '0')}`);

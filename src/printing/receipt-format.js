@@ -54,3 +54,10 @@ export function invoiceTicketDate(order, invoiceData) {
   if (invoiceData?.isCreditNote && invoiceData.fechaHoraEmision) return invoiceData.fechaHoraEmision;
   return order?.createdAt;
 }
+
+// Issuer IVA legend (RG 1415, Anexo II, Apartado A, I), a), 5). The POS sends it whole because
+// it varies by regime ("Responsable Monotributo", not "IVA Monotributo"). A POS that predates
+// the field only sends the label, which this agent always printed behind "IVA ".
+export function issuerIvaLegend(invoiceData) {
+  return invoiceData.condicionIvaEmisorLegend || `IVA ${invoiceData.condicionIvaEmisorLabel || ''}`;
+}
