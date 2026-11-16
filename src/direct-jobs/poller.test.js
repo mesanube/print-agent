@@ -250,6 +250,17 @@ describe('errors of the poll (R2, KTD12)', () => {
     poller.stop();
   });
 
+  it('a 200 with a body that is not JSON is a network-class error: no success is marked and it keeps polling', async () => {
+    script.poll = () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token < in JSON'); } });
+    const { poller, linkStatus } = await startLinked();
+    await tick();
+    await tick(3000);
+    await tick(3000);
+    expect(pollCalls()).toHaveLength(3);
+    expect(linkStatus.getLinkState()).toBe('offline');
+    poller.stop();
+  });
+
   it('a 401 stops the loop, forgets the link and the state becomes unlinked', async () => {
     script.poll = () => json(401);
     const { poller, linkStore, linkStatus } = await startLinked();

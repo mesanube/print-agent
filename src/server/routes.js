@@ -37,24 +37,45 @@ export function createApi(options) {
   const { isDevelopmentMode, getCurrentPort, appVersion } = options;
   const app = new Hono();
 
+  // The origins allowed to call the agent from a browser. Shared by the cors()
+  // middleware (response headers) and by the guard on state-changing routes.
+  const allowedOrigin = (origin) => {
+    // Allow requests with no origin (curl, native apps, Postman, etc.)
+    if (!origin) return origin;
+
+    // Allow production and staging domains
+    if (origin === 'https://app.mesanube.ar') return origin;
+    if (origin === 'https://api.mesanube.ar') return origin;
+
+    // Allow localhost for development (any port)
+    if (origin.startsWith('http://localhost:')) return origin;
+    if (origin.startsWith('http://127.0.0.1:')) return origin;
+
+    // Log and reject unknown origins
+    console.warn(`[CORS] Rejected origin: ${origin}`);
+    return null;
+  };
+
+  // cors() only sets response headers, it never rejects a request, and a
+  // text/plain POST needs no preflight, so on its own it does not stop another
+  // web page from changing agent state. This guard refuses a foreign Origin
+  // (403) and any body that is not application/json (415, which also forces a
+  // browser to preflight). Requests without an Origin header keep working.
+  const requireTrustedJsonRequest = async (c, next) => {
+    const origin = c.req.header('Origin');
+    if (origin && !allowedOrigin(origin)) {
+      return c.json({ error: 'Origin not allowed' }, 403);
+    }
+    const contentType = (c.req.header('Content-Type') || '').split(';')[0].trim().toLowerCase();
+    if (contentType !== 'application/json') {
+      return c.json({ error: 'Content-Type must be application/json' }, 415);
+    }
+    return next();
+  };
+
   // Enable CORS for all endpoints
   app.use('*', cors({
-    origin: (origin) => {
-      // Allow requests with no origin (curl, native apps, Postman, etc.)
-      if (!origin) return origin;
-
-      // Allow production and staging domains
-      if (origin === 'https://app.mesanube.ar') return origin;
-      if (origin === 'https://api.mesanube.ar') return origin;
-
-      // Allow localhost for development (any port)
-      if (origin.startsWith('http://localhost:')) return origin;
-      if (origin.startsWith('http://127.0.0.1:')) return origin;
-
-      // Log and reject unknown origins
-      console.warn(`[CORS] Rejected origin: ${origin}`);
-      return null;
-    },
+    origin: allowedOrigin,
     allowMethods: ['GET', 'POST', 'PUT'],
     allowHeaders: ['Content-Type', 'Authorization'],
     exposeHeaders: ['Content-Length', 'X-Request-ID']
@@ -246,7 +267,7 @@ export function createApi(options) {
   // the fixed allowlist (KTD3). The token is never echoed back, and there is no
   // local unlink: unlinking is a revocation on the server (KTD14).
   const nonEmptyString = (value) => typeof value === 'string' && value.length > 0 && value.length <= 2048;
-  app.post('/link', async (c) => {
+  app.post('/link', requireTrustedJsonRequest, async (c) => {
     const body = await c.req.json().catch(() => null);
     if (!body || typeof body !== 'object') {
       return c.json({ error: 'Invalid link body' }, 400);

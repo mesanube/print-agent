@@ -227,6 +227,65 @@ describe('POST /link (KTD3, R6, R7)', () => {
     expect(linkMemory.has('link')).toBe(false);
   });
 
+  describe('cross-site requests', () => {
+    const rawPost = (headers, body = validBody) => app.request('/link', {
+      method: 'POST',
+      headers,
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    });
+    const existing = { ...validBody, agentId: 'agent-old', token: 'old-token' };
+
+    it('rejects a text/plain simple request from a foreign origin and keeps the stored link', async () => {
+      expect((await post('/link', existing)).status).toBe(200);
+
+      const response = await rawPost({ 'Content-Type': 'text/plain', Origin: 'https://evil.example' });
+
+      expect([403, 415]).toContain(response.status);
+      expect(linkMemory.get('link')).toMatchObject({ agentId: 'agent-old', token: 'old-token' });
+    });
+
+    it('rejects application/json from a foreign origin with 403 and keeps the stored link', async () => {
+      expect((await post('/link', existing)).status).toBe(200);
+
+      const response = await rawPost({ 'Content-Type': 'application/json', Origin: 'https://evil.example' });
+
+      expect(response.status).toBe(403);
+      expect(linkMemory.get('link')).toMatchObject({ agentId: 'agent-old', token: 'old-token' });
+    });
+
+    it('rejects a non JSON content type without an origin with 415', async () => {
+      const response = await rawPost({ 'Content-Type': 'text/plain' });
+      expect(response.status).toBe(415);
+      expect(linkMemory.has('link')).toBe(false);
+    });
+
+    it('rejects a request with no content type with 415', async () => {
+      const response = await rawPost({});
+      expect(response.status).toBe(415);
+      expect(linkMemory.has('link')).toBe(false);
+    });
+
+    it.each([
+      'https://app.mesanube.ar',
+      'http://localhost:5173',
+      'http://127.0.0.1:8100',
+    ])('accepts application/json from the allowed origin %s', async (origin) => {
+      const response = await rawPost({ 'Content-Type': 'application/json', Origin: origin });
+      expect(response.status).toBe(200);
+      expect(linkMemory.get('link')).toMatchObject({ token: 'secret-token-value' });
+    });
+
+    it('accepts application/json with a charset parameter', async () => {
+      const response = await rawPost({ 'Content-Type': 'application/json; charset=utf-8' });
+      expect(response.status).toBe(200);
+    });
+
+    it('accepts application/json with no Origin header (curl, native apps)', async () => {
+      const response = await rawPost({ 'Content-Type': 'application/json' });
+      expect(response.status).toBe(200);
+    });
+  });
+
   it('there is no local unlink endpoint', async () => {
     for (const method of ['POST', 'DELETE', 'PUT']) {
       const response = await app.request('/unlink', { method });

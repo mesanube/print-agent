@@ -15,6 +15,25 @@ export class AgentApiError extends Error {
   }
 }
 
+// Parses the JSON body of an OK response. Only a response that has no body by
+// definition (204, or content-length 0) is an empty success. The read races the
+// abort signal so a stalled body is cut off by the request timeout even if the
+// body stream itself does not honor it.
+async function readBody(response, signal) {
+  if (response.status === 204 || response.headers?.get?.('content-length') === '0') return {};
+  let onAbort;
+  const aborted = new Promise((_resolve, reject) => {
+    onAbort = () => reject(new Error('Timed out reading the response body'));
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([response.json(), aborted]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+
 /**
  * Calls of the agent to `<apiBaseUrl>/v1/print-agents/*`, authenticated with the
  * link's token (KTD1, KTD12). Reads the link on every call, so a link saved while
@@ -28,24 +47,28 @@ export function createAgentApi({ fetchImpl = (...args) => fetch(...args), readLi
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    let response;
+    // The timer stays armed until the body is parsed: a server that sends the
+    // headers and then stalls must not hang the loop.
     try {
-      response = await fetchImpl(`${link.apiBaseUrl}/v1/print-agents/${path}`, {
+      const response = await fetchImpl(`${link.apiBaseUrl}/v1/print-agents/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${link.token}` },
         body: JSON.stringify(body),
         signal: controller.signal,
       });
+      if (!response.ok) {
+        throw new AgentApiError(`Request to ${path} answered ${response.status}`, { status: response.status, token: link.token });
+      }
+      return await readBody(response, controller.signal);
     } catch (error) {
+      if (error instanceof AgentApiError) throw error;
+      // Network error, timeout, or a body that could not be read or parsed. A
+      // reply we cannot read is never turned into an empty success: the server
+      // may have claimed jobs for us that we did not see.
       throw new AgentApiError(`Request to ${path} failed: ${error.message}`, { token: link.token });
     } finally {
       clearTimeout(timer);
     }
-
-    if (!response.ok) {
-      throw new AgentApiError(`Request to ${path} answered ${response.status}`, { status: response.status, token: link.token });
-    }
-    return response.json().catch(() => ({}));
   }
 
   return {
