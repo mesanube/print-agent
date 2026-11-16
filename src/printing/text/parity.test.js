@@ -288,13 +288,21 @@ describe('HTML and text renderers print the same information', () => {
     });
 
     it('sin aviso, ninguna plantilla lo dibuja ni deja el marcador', async () => {
-      for (const [template, type] of [['modern-order.html', 'order'], ['modern-receipt.html', 'receipt'], ['table-receipt.html', 'receipt'], ['classic-table-receipt.html', 'receipt'], ['branded-receipt.html', 'receipt']]) {
-        for (const empty of [undefined, null, {}, { title: '', lines: [] }]) {
-          const html = await generateHtmlFromTemplate(order, restaurant, template, type, undefined, null, empty);
-          expect(html).not.toContain('{{notice}}');
-          expect(html).not.toContain('data-notice');
-          expect(html).toBe(await generateHtmlFromTemplate(order, restaurant, template, type, undefined, null));
+      // The templates print the current time with seconds when the order has no date of its
+      // own, so two renders straddling a second boundary would differ. Freeze only Date.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-11-16T21:10:00'));
+      try {
+        for (const [template, type] of [['modern-order.html', 'order'], ['modern-receipt.html', 'receipt'], ['table-receipt.html', 'receipt'], ['classic-table-receipt.html', 'receipt'], ['branded-receipt.html', 'receipt']]) {
+          for (const empty of [undefined, null, {}, { title: '', lines: [] }]) {
+            const html = await generateHtmlFromTemplate(order, restaurant, template, type, undefined, null, empty);
+            expect(html).not.toContain('{{notice}}');
+            expect(html).not.toContain('data-notice');
+            expect(html).toBe(await generateHtmlFromTemplate(order, restaurant, template, type, undefined, null));
+          }
         }
+      } finally {
+        vi.useRealTimers();
       }
     });
   });
