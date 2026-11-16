@@ -223,6 +223,82 @@ describe('HTML and text renderers print the same information', () => {
     expectInBoth(html, buildOrder({ order: noName, restaurant }, ctx), [`-- ${title} --`]);
   });
 
+  // KTD11: the generic notice (title + lines) is drawn at the top of every ticket by both renderers.
+  describe('aviso generico', () => {
+    const notice = { title: 'ATRASADA', lines: ['Comandado a las: 21:10', 'Hora actual: 21:35'] };
+    const invoiceData = {
+      razonSocialEmisor: 'Pentos SRL', domicilioEmisor: 'Av. Siempre Viva 123', docEmisor: '30712345678',
+      docEmisorFormatted: '30-71234567-8', ingresosBrutosEmisor: '901-123', inicioActividadEmisor: '20200101',
+      condicionIvaEmisorLabel: 'Responsable Inscripto', tipoComprobanteLabel: 'Factura B', tipoComprobante: 6,
+      razonSocialReceptor: 'Consumidor Final', tipoDocReceptorLabel: 'DNI', docReceptorFormatted: '0',
+      condicionIvaReceptorLabel: 'Consumidor Final', puntoVenta: 3, numeroComprobante: 1234, impIVA: 100,
+      otrosImpuestosNacionales: 0, cae: '74123456789012', vencimientoCAEFormatted: '10/10/2026',
+      fechaEmision: '2026-09-29', total: 24300,
+    };
+    const shown = ['ATRASADA', 'Comandado a las: 21:10', 'Hora actual: 21:35'];
+    // The notice is the first thing on the ticket: its last line comes before the usual header.
+    const before = (text, header) => {
+      const lastLine = text.indexOf('Hora actual: 21:35');
+      expect(lastLine).toBeGreaterThan(-1);
+      expect(text.indexOf(header)).toBeGreaterThan(lastLine);
+    };
+
+    it('comanda', async () => {
+      const html = await generateHtmlFromTemplate(order, restaurant, 'modern-order.html', 'order', undefined, null, notice);
+      const blocks = buildOrder({ order, restaurant, notice }, ctx);
+      expectInBoth(html, blocks, shown);
+      before(htmlText(html), '#42');
+      before(blocksText(blocks), '#42');
+    });
+
+    it('precuenta', async () => {
+      const html = await generateHtmlFromTemplate(order, restaurant, 'modern-receipt.html', 'receipt', undefined, null, notice);
+      const blocks = buildReceipt({ order, restaurant, notice }, ctx);
+      expectInBoth(html, blocks, shown);
+      before(htmlText(html), 'Pentos Castelar');
+      before(blocksText(blocks), 'Pentos Castelar');
+    });
+
+    it('factura', async () => {
+      const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', 'invoice', invoiceData, null, notice);
+      const blocks = buildInvoice({ order, restaurant, invoiceData, notice }, ctx);
+      expectInBoth(html, blocks, shown);
+      before(htmlText(html), 'Pentos Castelar');
+      before(blocksText(blocks), 'Pentos Castelar');
+    }, 20000);
+
+    it.each(['table-receipt.html', 'classic-table-receipt.html', 'branded-receipt.html'])('%s lleva el aviso arriba', async (template) => {
+      const html = await generateHtmlFromTemplate(order, restaurant, template, 'receipt', undefined, null, notice);
+      expectInBoth(html, buildReceipt({ order, restaurant, notice }, ctx), shown);
+      before(htmlText(html), 'Pentos Castelar');
+    });
+
+    it('el aviso queda escapado en la imagen', async () => {
+      const html = await generateHtmlFromTemplate(order, restaurant, 'modern-order.html', 'order', undefined, null, { title: '<b>X</b> & "y"', lines: ['<img src=x>'] });
+      expect(html).not.toContain('<b>X</b>');
+      expect(html).not.toContain('<img src=x>');
+      expect(html).toContain('&lt;b&gt;X&lt;/b&gt; &amp; &quot;y&quot;');
+    });
+
+    it('el texto del aviso sale tal cual: ni patrones de reemplazo ni marcadores de la plantilla', async () => {
+      const tricky = { title: "Total $& $1 $' $$", lines: ['{{order.table}} {{restaurant.name}}'] };
+      const html = await generateHtmlFromTemplate(order, restaurant, 'modern-order.html', 'order', undefined, null, tricky);
+      expect(html).toContain("Total $&amp; $1 $&#39; $$");
+      expect(html).toContain('{{order.table}} {{restaurant.name}}');
+    });
+
+    it('sin aviso, ninguna plantilla lo dibuja ni deja el marcador', async () => {
+      for (const [template, type] of [['modern-order.html', 'order'], ['modern-receipt.html', 'receipt'], ['table-receipt.html', 'receipt'], ['classic-table-receipt.html', 'receipt'], ['branded-receipt.html', 'receipt']]) {
+        for (const empty of [undefined, null, {}, { title: '', lines: [] }]) {
+          const html = await generateHtmlFromTemplate(order, restaurant, template, type, undefined, null, empty);
+          expect(html).not.toContain('{{notice}}');
+          expect(html).not.toContain('data-notice');
+          expect(html).toBe(await generateHtmlFromTemplate(order, restaurant, template, type, undefined, null));
+        }
+      }
+    });
+  });
+
   it('ticket de mesa con nombre: ambos lo imprimen', async () => {
     const named = { ...order, deliveryName: 'Juan' };
     const html = await generateHtmlFromTemplate(named, restaurant, 'modern-receipt.html', 'receipt');

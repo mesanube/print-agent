@@ -69,3 +69,48 @@ export function formatAfipDate(value) {
   return /^\d{8}$/.test(str) ? `${str.slice(6, 8)}/${str.slice(4, 6)}/${str.slice(0, 4)}` : str;
 }
 
+
+/**
+ * Generic notice the server can attach to a print body: `{ title, lines }` with the text
+ * already final (for example title "ATRASADA", lines ["Comandado a las: 21:10"]). Both
+ * renderers draw it at the very top of the ticket.
+ * @param {*} notice - whatever the body carried under `notice`
+ * @returns {{ title: string, lines: string[] }|null} null when there is nothing to print
+ */
+export function normalizeNotice(notice) {
+  if (!notice || typeof notice !== 'object' || Array.isArray(notice)) return null;
+  const clean = (value) => (value == null ? '' : String(value).trim());
+  const title = clean(notice.title);
+  const lines = (Array.isArray(notice.lines) ? notice.lines : []).map(clean).filter(Boolean);
+  if (!title && lines.length === 0) return null;
+  return { title, lines };
+}
+
+const escapeNoticeText = (value) =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/**
+ * HTML of the notice for the image-mode templates: a full-width inverted title and one
+ * centered line per received line. Inline styles so it looks the same in every template.
+ * Mirrored in text/documents.js (DocBuilder.notice). Empty string when there is no notice,
+ * so a ticket without one renders exactly as before.
+ * @param {*} notice
+ * @returns {string}
+ */
+export function renderNoticeHtml(notice) {
+  const n = normalizeNotice(notice);
+  if (!n) return '';
+  const wrapSafe = 'overflow-wrap: anywhere; word-break: break-word;';
+  const title = n.title
+    ? `<div data-notice-title style="background: #000; color: #fff; font-size: 26px; font-weight: bolder; padding: 6px 4px; ${wrapSafe}">${escapeNoticeText(n.title)}</div>`
+    : '';
+  const lines = n.lines
+    .map((line) => `<div data-notice-line style="font-size: 15px; font-weight: bolder; padding: 3px 0 0; ${wrapSafe}">${escapeNoticeText(line)}</div>`)
+    .join('');
+  return `<div data-notice style="text-align: center; color: #000; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 2px solid #000;">${title}${lines}</div>`;
+}

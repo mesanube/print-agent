@@ -15,7 +15,7 @@
 // length prints whole (R8).
 
 import { columnsFor, dotsFor, twoColumns, wrap, center, rule } from './layout.js';
-import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate, issuerIvaLegend, formatAfipDate } from '../receipt-format.js';
+import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate, issuerIvaLegend, formatAfipDate, normalizeNotice } from '../receipt-format.js';
 import { generateAfipQRCodeData } from '../qrcode-generator.js';
 
 const money = (amount, { negative = false } = {}) =>
@@ -123,6 +123,20 @@ class DocBuilder {
     return this.lines(twoColumns(label, money(amount), this.ctx.totalCols), style);
   }
 
+  // Generic notice (KTD11) at the very top of a ticket: the title as a full-width inverted
+  // band, one centered line per received line, then a rule before the usual header. Mirrors
+  // renderNoticeHtml in receipt-format.js. Draws nothing without a notice.
+  notice(notice) {
+    const n = normalizeNotice(notice);
+    if (!n) return this;
+    const { paper, charSpacing, body } = this.ctx;
+    const titleStyle = { bold: true, invert: true, width: 2, height: 2 };
+    const titleCols = columnsFor(paper, charSpacing, Math.max(body.width, titleStyle.width));
+    if (n.title) this.lines(wrap(n.title, titleCols).map((l) => center(l, titleCols).padEnd(titleCols)), titleStyle);
+    for (const line of n.lines) this.centered(line);
+    return this.rule();
+  }
+
   logo() {
     const url = this.ctx.settings.logoUrl;
     if (url) this.blocks.push({ type: 'logo', url });
@@ -202,8 +216,9 @@ function discountRows(doc, order) {
 }
 
 /** Precuenta / ticket (modern-receipt.html). */
-export function buildReceipt({ order = {}, restaurant = {} }, ctx) {
+export function buildReceipt({ order = {}, restaurant = {}, notice }, ctx) {
   const doc = new DocBuilder(ctx);
+  doc.notice(notice);
   doc.logo();
   doc.centered(restaurant?.name || '', { bold: true, height: 2 });
   if (restaurant?.address) doc.centered(restaurant.address);
@@ -227,11 +242,12 @@ export function buildReceipt({ order = {}, restaurant = {} }, ctx) {
 }
 
 /** Factura AFIP (modern-invoice.html). The QR is emitted only with a CAE. */
-export function buildInvoice({ order, restaurant = {}, invoiceData = {} }, ctx) {
+export function buildInvoice({ order, restaurant = {}, invoiceData = {}, notice }, ctx) {
   // A comprobante never prints without its order: no items, no total.
   if (!order) throw new Error(MISSING_ORDER_MESSAGE);
   const inv = invoiceData || {};
   const doc = new DocBuilder(ctx);
+  doc.notice(notice);
   doc.logo();
   doc.centered(restaurant?.name || '', { bold: true, height: 2 });
   doc.paragraph(inv.razonSocialEmisor || '');
@@ -271,8 +287,9 @@ export function buildInvoice({ order, restaurant = {}, invoiceData = {} }, ctx) 
 }
 
 /** Comanda de cocina (modern-order.html). */
-export function buildOrder({ order = {} }, ctx) {
+export function buildOrder({ order = {}, notice }, ctx) {
   const doc = new DocBuilder(ctx);
+  doc.notice(notice);
   doc.centered(`#${order.dailyOrderNumber || order.orderNumber || '--'}`, { bold: true, width: 2, height: 2 });
   doc.rule();
   if (order.table) doc.row('Mesa:', String(order.table), { bold: true });
@@ -309,8 +326,9 @@ function updatePrefix(kind, note) {
  * windows-printer.js). A cancelled line prints inverted, the text-mode
  * equivalent of the black band in the HTML chit.
  */
-export function buildOrderUpdate({ order = {}, lines = [] }, ctx) {
+export function buildOrderUpdate({ order = {}, lines = [], notice }, ctx) {
   const doc = new DocBuilder(ctx);
+  doc.notice(notice);
   doc.centered('** ACTUALIZACION **', { bold: true, invert: true, height: 2 });
   doc.centered(`#${order.dailyOrderNumber || '--'}`, { bold: true, width: 2, height: 2 });
   if (DESTINATION_TITLES[order.orderType]) {

@@ -43,7 +43,8 @@ vi.mock('./transports/gdi-transport.js', () => ({ printBitmap: printBitmapGdi })
 const writeRaw = vi.fn();
 vi.mock('./transports/raw-transport.js', () => ({ printBitmap: vi.fn(), writeRaw }));
 
-const { printReceipt, printInvoice, printOrder, printOrderUpdate, printCashClose, printDayZ, updateChitHeaderHtml } = await import('./windows-printer.js');
+const { printReceipt, printInvoice, printOrder, printOrderUpdate, printCashClose, printDayZ, updateChitHeaderHtml, renderOrderUpdateHtml } = await import('./windows-printer.js');
+const { layoutContext, buildOrderUpdate } = await import('./text/documents.js');
 
 const receipt = { order: { items: [{ name: 'Cafe', price: 1500, quantity: 1 }], orderTotal: 1500 }, restaurant: { name: 'Bar' } };
 
@@ -144,5 +145,113 @@ describe('update chit header in image mode', () => {
       expect(html).toContain(`<div class="meta"><span>${label}</span><span>${value}</span></div>`);
     }
     expect(html).toContain('-- DELIVERY --');
+  });
+});
+
+// KTD11: a notice { title, lines } on the print body is drawn at the top of any ticket.
+describe('notice on the print body', () => {
+  const notice = { title: 'ATRASADA', lines: ['Comandado a las: 21:10', 'Hora actual: 21:35'] };
+  const updateInput = { order, lines: [{ kind: 'add', quantity: 1, name: 'Flan' }] };
+  const bytesContain = (bytes, text) => Buffer.from(bytes).includes(Buffer.from(text, 'latin1'));
+  const plainText = (html) => html.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+
+  describe('update chit (image mode)', () => {
+    it('draws the title and the lines above the ACTUALIZACION header, in order', () => {
+      const text = plainText(renderOrderUpdateHtml({ ...updateInput, notice, now: new Date() }));
+      const at = ['ATRASADA', 'Comandado a las: 21:10', 'Hora actual: 21:35', '** ACTUALIZACION **'].map((s) => text.indexOf(s));
+      expect(at[0]).toBeGreaterThan(-1);
+      expect(at).toEqual([...at].sort((a, b) => a - b));
+      expect(new Set(at).size).toBe(4);
+    });
+
+    it('prints the same notice text as the text document', () => {
+      const text = plainText(renderOrderUpdateHtml({ ...updateInput, notice, now: new Date() }));
+      const blocks = buildOrderUpdate({ ...updateInput, notice }, layoutContext());
+      for (const piece of [notice.title, ...notice.lines]) {
+        expect(text).toContain(piece);
+        expect(blocks.some((b) => b.type === 'text' && b.text.includes(piece))).toBe(true);
+      }
+    });
+
+    it('a title with no lines prints just the title', () => {
+      const html = renderOrderUpdateHtml({ ...updateInput, notice: { title: 'ATRASADA' }, now: new Date() });
+      expect(plainText(html)).toContain('ATRASADA');
+      expect(html.match(/data-notice-line/g)).toBeNull();
+    });
+
+    it('escapes the notice text', () => {
+      const html = renderOrderUpdateHtml({ ...updateInput, notice: { title: '<b>X</b>', lines: ['<img src=x>'] }, now: new Date() });
+      expect(html).not.toContain('<b>X</b>');
+      expect(html).not.toContain('<img src=x>');
+      expect(html).toContain('&lt;b&gt;X&lt;/b&gt;');
+    });
+
+    it('without a notice draws nothing of it', () => {
+      const now = new Date();
+      const plain = renderOrderUpdateHtml({ ...updateInput, now });
+      expect(plain).not.toContain('data-notice');
+      for (const empty of [null, {}, { title: '', lines: [] }]) {
+        expect(renderOrderUpdateHtml({ ...updateInput, notice: empty, now })).toBe(plain);
+      }
+    });
+
+    it('printOrderUpdate in image mode hands the notice to the rendered page', async () => {
+      let page = null;
+      BrowserWindow.mockImplementationOnce(() => ({
+        isDestroyed: () => false,
+        destroy: () => {},
+        loadURL: async (url) => {
+          page = decodeURIComponent(url.replace('data:text/html;charset=utf-8,', ''));
+          throw new Error('captured');
+        },
+      }));
+      modes.Fiscal = 'compat';
+      await expect(printOrderUpdate({ ...updateInput, notice }, 'Fiscal')).rejects.toThrow('captured');
+      expect(plainText(page)).toContain('ATRASADA');
+      expect(plainText(page)).toContain('Hora actual: 21:35');
+    });
+  });
+
+  describe('text mode', () => {
+    const prints = {
+      comanda: () => printOrder({ order, restaurant: { name: 'Bar' }, notice }, 'Caja'),
+      'order update': () => printOrderUpdate({ ...updateInput, notice }, 'Caja'),
+      precuenta: () => printReceipt({ ...receipt, notice }, 'Caja'),
+      invoice: () => printInvoice({ order: receipt.order, restaurant: receipt.restaurant, invoiceData: {}, notice }, 'Caja'),
+    };
+    for (const [name, print] of Object.entries(prints)) {
+      it(`${name}: the encoded ticket carries the notice`, async () => {
+        await print();
+        const bytes = writeRaw.mock.calls[0][1];
+        expect(bytesContain(bytes, 'ATRASADA')).toBe(true);
+        expect(bytesContain(bytes, 'Hora actual: 21:35')).toBe(true);
+      });
+    }
+
+    it('a ticket whose body has no notice does not print one', async () => {
+      await printOrder({ order, restaurant: { name: 'Bar' } }, 'Caja');
+      expect(bytesContain(writeRaw.mock.calls[0][1], 'ATRASADA')).toBe(false);
+    });
+  });
+
+  describe('image mode templates', () => {
+    beforeEach(() => { modes.Fiscal = 'compat'; });
+
+    it('receipt, order and invoice hand the notice to the template', async () => {
+      await expect(printReceipt({ ...receipt, notice }, 'Fiscal')).rejects.toThrow('render-window-created');
+      await expect(printOrder({ order, restaurant: { name: 'Bar' }, notice }, 'Fiscal')).rejects.toThrow('render-window-created');
+      await expect(printInvoice({ order: receipt.order, restaurant: receipt.restaurant, invoiceData: {}, notice }, 'Fiscal')).rejects.toThrow('render-window-created');
+      expect(generateHtmlFromTemplate.mock.calls.map((call) => call[6])).toEqual([notice, notice, notice]);
+    });
+
+    it('a legacy body that is the order itself still carries its notice', async () => {
+      await expect(printOrder({ ...order, notice }, 'Fiscal')).rejects.toThrow('render-window-created');
+      expect(generateHtmlFromTemplate.mock.calls[0][6]).toEqual(notice);
+    });
+
+    it('without a notice the template gets none', async () => {
+      await expect(printReceipt(receipt, 'Fiscal')).rejects.toThrow('render-window-created');
+      expect(generateHtmlFromTemplate.mock.calls[0][6]).toBeUndefined();
+    });
   });
 });
