@@ -9,6 +9,11 @@
     "language": "Language",
     "english": "English",
     "spanish": "Spanish",
+    "linkStatus": {
+      "linked": "Linked: receiving jobs",
+      "unlinked": "Not linked",
+      "offline": "No connection to the server"
+    },
     "exit": "Exit"
   },
   "statusDialog": {

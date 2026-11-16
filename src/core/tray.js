@@ -7,6 +7,7 @@ import { findAvailablePort } from '../shared/network-helpers.js';
 import i18next from './i18n.js';
 import { showStatus, changeLanguage } from './app-events.js';
 import { checkForUpdatesManually, onUpdateStatusChange } from './auto-updater.js';
+import { getLinkState, onLinkStatusChange, LINK_STATE_TRANSLATION_KEYS } from '../direct-jobs/link-status.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +23,8 @@ let tray = null;
 let updateStatus = 'idle'; // 'idle' | 'checking' | 'ready'
 let blinkInterval = null;
 let blinkOn = false;
+
+const linkStatusText = () => i18next.t(LINK_STATE_TRANSLATION_KEYS[getLinkState()]);
 
 // 'checking' has no natural end frame to hold on, so blink between the base
 // and checking icons instead of a single static badge -- a static badge that
@@ -43,7 +46,7 @@ function applyUpdateStatusToTray() {
     tray.setToolTip(i18next.t('tray.updateReadyToInstall'));
   } else {
     tray.setImage(icons.base);
-    tray.setToolTip('Print Agent - Ready');
+    tray.setToolTip(`Print Agent - ${linkStatusText()}`);
   }
 }
 
@@ -69,9 +72,14 @@ export function createTray() {
         updateStatus = status;
         applyUpdateStatusToTray();
       });
+
+      // Rebuild the menu so its status line and the tooltip follow the link state.
+      onLinkStatusChange(() => createTray());
     }
 
     const menuTemplate = [
+      { label: linkStatusText(), enabled: false },
+      { type: 'separator' },
       {
         label: i18next.t('tray.viewStatus'),
         click: () => showStatus()

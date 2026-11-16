@@ -18,6 +18,9 @@ import {
   getRegisterId, setRegisterId,
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
+import os from 'os';
+import { getOrCreateInstallationId, getPublicLink, saveLink } from '../direct-jobs/link-store.js';
+import { normalizeAllowedApiUrl } from '../direct-jobs/api-url-allowlist.js';
 import { startJobTiming } from '../printing/job-timing.js';
 import { getPendingUpdateVersion } from '../core/auto-updater.js';
 import { runWithBudget, PRINT_TIMEOUT_CODE } from '../printing/worker/time-budget.js';
@@ -119,7 +122,13 @@ export function createApi(options) {
       selectedPrinter: getSelectedPrinter(),
       printerExplicitlySelected: getPrinterExplicitlySelected(),
       registerId: getRegisterId(),
-      printerTransports: getPrinterTransports()
+      printerTransports: getPrinterTransports(),
+      // Direct jobs: the browser links only agents that announce this
+      // capability (KTD16). `link` has ids only, never the token.
+      installationId: getOrCreateInstallationId(),
+      hostname: os.hostname(),
+      link: getPublicLink(),
+      capabilities: ['direct-jobs']
     });
   });
 
@@ -277,6 +286,33 @@ export function createApi(options) {
         details: error.message
       }, 500);
     }
+  });
+
+  // POST /link: store the credential the Mesanube server issued for this
+  // install so the agent can fetch its print jobs (KTD1). The API url must be on
+  // the fixed allowlist (KTD3). The token is never echoed back, and there is no
+  // local unlink: unlinking is a revocation on the server (KTD14).
+  const nonEmptyString = (value) => typeof value === 'string' && value.length > 0 && value.length <= 2048;
+  app.post('/link', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return c.json({ error: 'Invalid link body' }, 400);
+    }
+    const { token, apiBaseUrl, agentId, organizationId, locationId, registerId } = body;
+    if (![token, agentId, organizationId, locationId].every(nonEmptyString)) {
+      return c.json({ error: 'token, agentId, organizationId and locationId are required strings' }, 400);
+    }
+    if (registerId != null && !nonEmptyString(registerId)) {
+      return c.json({ error: 'registerId must be a string or null' }, 400);
+    }
+    const allowedApiUrl = normalizeAllowedApiUrl(apiBaseUrl);
+    if (!allowedApiUrl) {
+      console.warn('[Link] Rejected link to a disallowed API url');
+      return c.json({ error: 'apiBaseUrl is not allowed' }, 400);
+    }
+    saveLink({ token, apiBaseUrl: allowedApiUrl, agentId, organizationId, locationId, registerId });
+    console.log('[Link] Linked to', allowedApiUrl, 'as agent', agentId);
+    return c.json({ success: true, link: getPublicLink() });
   });
 
   // Test endpoint (conditionally enabled)

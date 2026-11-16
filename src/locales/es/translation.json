@@ -9,6 +9,11 @@
     "language": "Idioma",
     "english": "Inglés",
     "spanish": "Español",
+    "linkStatus": {
+      "linked": "Vinculado: recibiendo trabajos",
+      "unlinked": "Sin vincular",
+      "offline": "Sin conexión con el servidor"
+    },
     "exit": "Salir"
   },
   "statusDialog": {
