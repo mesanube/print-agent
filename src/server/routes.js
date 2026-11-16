@@ -21,64 +21,17 @@ import {
 import os from 'os';
 import { getOrCreateInstallationId, getPublicLink, saveLink } from '../direct-jobs/link-store.js';
 import { normalizeAllowedApiUrl } from '../direct-jobs/api-url-allowlist.js';
-import { startJobTiming } from '../printing/job-timing.js';
+import { runTimedJob } from '../printing/job-timing.js';
+import { isDuplicateJob, recordJob, releaseJob } from '../printing/job-dedup.js';
 import { getPendingUpdateVersion } from '../core/auto-updater.js';
 import { runWithBudget, PRINT_TIMEOUT_CODE } from '../printing/worker/time-budget.js';
 import { printTestPage, printReceipt, printOrder, printOrderUpdate, printInvoice, printCashClose, printDayZ, printCalibrationPage } from '../printing/index.js';
-
-// In-memory idempotency cache for print jobs, keyed by a generic `jobId`.
-// Covers kitchen comandas/updates (jobId = kitchenTicketId) AND the SSE
-// fan-out receipt/invoice/NC jobs. Protects against an SSE replay, a manual
-// reprint racing through twice, or two machines sharing the same printer name.
-// Short TTL — long enough to absorb a network retry, short enough that
-// intentional reprints later (a fresh jobId) aren't blocked.
-const PRINT_JOB_TTL_MS = 5 * 60 * 1000;
-const printedJobs = new Map(); // jobId → printedAt timestamp
-
-const isDuplicateJob = (jobId) => {
-  if (!jobId) return false;
-  const printedAt = printedJobs.get(jobId);
-  if (!printedAt) return false;
-  if (Date.now() - printedAt > PRINT_JOB_TTL_MS) {
-    printedJobs.delete(jobId);
-    return false;
-  }
-  return true;
-};
-
-const recordJob = (jobId) => {
-  if (!jobId) return;
-  printedJobs.set(jobId, Date.now());
-  // Best-effort eviction so the map can't grow unbounded over a long
-  // uptime — sweep entries past TTL on each insert.
-  if (printedJobs.size > 256) {
-    const cutoff = Date.now() - PRINT_JOB_TTL_MS;
-    for (const [id, ts] of printedJobs) {
-      if (ts < cutoff) printedJobs.delete(id);
-    }
-  }
-};
 
 // A stuck job answers with the same 500 and body shape as any print failure,
 // plus a `code` the client uses to tell the user the printer did not respond
 // (KTD4). Other errors carry no code, exactly as before.
 const printErrorBody = (body, error) =>
   (error?.code === PRINT_TIMEOUT_CODE ? { ...body, code: PRINT_TIMEOUT_CODE } : body);
-
-// Runs one print job with its stage timings (R3). The timing line is logged
-// on success and on failure alike, so a failed job still shows how far it got.
-async function runTimedJob(job, print) {
-  const timing = startJobTiming(job);
-  try {
-    // One time budget for the whole request: queue wait, capture, printer
-    // calls and write all draw from it (KTD2).
-    await runWithBudget(() => print(timing));
-    timing.finish();
-  } catch (error) {
-    timing.finish({ error });
-    throw error;
-  }
-}
 
 export function createApi(options) {
   const { isDevelopmentMode, getCurrentPort, appVersion } = options;
@@ -363,7 +316,7 @@ export function createApi(options) {
       try {
         await runTimedJob('receipt', (timing) => printReceipt(requestData, printerName, timing));
       } catch (error) {
-        if (jobId) printedJobs.delete(jobId);
+        if (jobId) releaseJob(jobId);
         throw error;
       }
       return c.json({ success: true, message: 'Receipt printed successfully' });
@@ -420,7 +373,7 @@ export function createApi(options) {
       try {
         await runTimedJob('order', (timing) => printOrder(requestData, printerName, timing));
       } catch (error) {
-        if (kitchenTicketId) printedJobs.delete(kitchenTicketId);
+        if (kitchenTicketId) releaseJob(kitchenTicketId);
         throw error;
       }
       return c.json({ success: true, message: 'Order printed successfully' });
@@ -450,7 +403,7 @@ export function createApi(options) {
       try {
         await runTimedJob('order-update', (timing) => printOrderUpdate(requestData, printerName, timing));
       } catch (error) {
-        if (kitchenTicketId) printedJobs.delete(kitchenTicketId);
+        if (kitchenTicketId) releaseJob(kitchenTicketId);
         throw error;
       }
       return c.json({ success: true, message: 'Update chit printed successfully' });
@@ -478,7 +431,7 @@ export function createApi(options) {
       try {
         await runTimedJob('invoice', (timing) => printInvoice(requestData, printerName, timing));
       } catch (error) {
-        if (jobId) printedJobs.delete(jobId);
+        if (jobId) releaseJob(jobId);
         throw error;
       }
       return c.json({ success: true, message: 'Invoice printed successfully' });

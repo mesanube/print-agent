@@ -10,6 +10,8 @@ vi.mock('../core/store.js', () => {
   return {
     getInstallationId: (...args) => (linkMemory.has('installationId') ? linkMemory.get('installationId') : (args[0] ?? null)),
     setInstallationId: (id) => linkMemory.set('installationId', id),
+    getDirectJobsState: () => linkMemory.get('directJobs') ?? null,
+    setDirectJobsState: (state) => linkMemory.set('directJobs', JSON.parse(JSON.stringify(state))),
     getPrintAgentLink: () => linkMemory.get('link') ?? null,
     setPrintAgentLink: (link) => (link ? linkMemory.set('link', link) : linkMemory.delete('link')),
     getSelectedPrinter: fn('Caja'), getDefaultTemplate: fn(), setDefaultTemplate: fn(),
@@ -32,6 +34,8 @@ const getPendingUpdateVersion = vi.fn(() => null);
 vi.mock('../core/auto-updater.js', () => ({ getPendingUpdateVersion }));
 
 const { createApi } = await import('./routes.js');
+const { resetJobDedup } = await import('../printing/job-dedup.js');
+const { runJob } = await import('../direct-jobs/job-runner.js');
 const app = createApi({ isDevelopmentMode: false, getCurrentPort: () => 8847, appVersion: '1.6.3' });
 
 const post = (path, body) => app.request(path, {
@@ -43,6 +47,7 @@ const post = (path, body) => app.request(path, {
 beforeEach(() => {
   vi.clearAllMocks();
   linkMemory.clear();
+  resetJobDedup();
   delete process.env.PRINT_AGENT_ALLOWED_API_URLS;
 });
 
@@ -227,5 +232,35 @@ describe('POST /link (KTD3, R6, R7)', () => {
       const response = await app.request('/unlink', { method });
       expect(response.status).toBe(404);
     }
+  });
+});
+
+describe('one dedup for the browser route and the direct poll (R4, U7)', () => {
+  const receiptJob = (jobId) => ({ jobId, endpoint: 'receipt', body: { jobId, printerName: 'Caja' } });
+  const makeApi = () => ({ ack: vi.fn(async () => ({})), fail: vi.fn(async () => ({})) });
+
+  it('a jobId printed through the HTTP route and then offered by the poll is acked, not printed again', async () => {
+    printReceipt.mockResolvedValue();
+    expect((await post('/print/receipt', { jobId: 'dup-1', printerName: 'Caja' })).status).toBe(200);
+    const api = makeApi();
+    await runJob(receiptJob('dup-1'), api);
+    expect(printReceipt).toHaveBeenCalledTimes(1);
+    expect(api.ack).toHaveBeenCalledWith('dup-1');
+  });
+
+  it('a jobId printed by the poll and then sent by the browser answers duplicate and does not print', async () => {
+    printReceipt.mockResolvedValue();
+    await runJob(receiptJob('dup-2'), makeApi());
+    const response = await post('/print/receipt', { jobId: 'dup-2', printerName: 'Caja' });
+    expect((await response.json()).duplicate).toBe(true);
+    expect(printReceipt).toHaveBeenCalledTimes(1);
+  });
+
+  it('a print that failed through the route releases the jobId, so the poll can print it', async () => {
+    printReceipt.mockRejectedValueOnce(new Error('paper out'));
+    expect((await post('/print/receipt', { jobId: 'dup-3', printerName: 'Caja' })).status).toBe(500);
+    printReceipt.mockResolvedValueOnce();
+    await runJob(receiptJob('dup-3'), makeApi());
+    expect(printReceipt).toHaveBeenCalledTimes(2);
   });
 });

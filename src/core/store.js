@@ -285,3 +285,16 @@ export function setPrintAgentLink(link) {
 export function getPrintAgentLink() {
   return store.get('printAgentLink', null);
 }
+
+// --- Direct jobs state ---
+// jobIds this agent printed from the server's poll (last 24 h) and the queue of
+// acks the server has not confirmed yet. Written only by
+// direct-jobs/printed-jobs.js, which owns the shape and the pruning.
+
+export function getDirectJobsState() {
+  return store.get('directJobsState', null);
+}
+
+export function setDirectJobsState(state) {
+  store.set('directJobsState', state);
+}
