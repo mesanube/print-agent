@@ -18,6 +18,7 @@ import { initAutoUpdater, quitAndInstallIfReady } from './core/auto-updater.js';
 import { shutdownPrintWorkers } from './printing/worker/print-worker-client.js';
 import { initFileLog } from './core/file-log.js';
 import { cleanupTempReceipts } from './core/temp-cleanup.js';
+import { startPoller, stopPoller } from './direct-jobs/poller.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,6 +87,11 @@ app.whenReady().then(async () => {
     // Auto-select the default or first available printer
     await autoSelectPrinter();
 
+    // Direct jobs: poll the Mesanube server for this agent's print jobs. It
+    // polls only while the agent is linked and starts by itself when the browser
+    // links it (POST /link). Not in a second instance that is about to quit.
+    if (gotTheLock) startPoller({ version: app.getVersion() });
+
     // Check for and silently apply agent updates (packaged builds only)
     if (app.isPackaged) {
       initAutoUpdater();
@@ -116,6 +122,14 @@ app.on('before-quit', async (event) => {
   event.preventDefault();
 
   try {
+    // No new poll cycle starts once the agent is closing. Its own try: a
+    // failure here must not skip stopping the print processes.
+    try {
+      stopPoller();
+    } catch (error) {
+      console.error('[Cleanup] Could not stop the poller:', error.message);
+    }
+
     // Stop the print processes first so none outlives the agent, including
     // when an update installs right after (KTD9). Its own try: a failure in
     // the window cleanup below must not skip it.

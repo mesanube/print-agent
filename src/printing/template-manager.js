@@ -9,7 +9,7 @@ import {
   generateAfipQRCodePngHTML,
 } from './qrcode-generator.js';
 import { getLogoAsBase64 } from '../shared/file-helpers.js';
-import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate, issuerIvaLegend, formatAfipDate } from './receipt-format.js';
+import { formatPrice, PM_LEGACY_LABELS, DOC_TYPE_LABELS, MISSING_ORDER_MESSAGE, associatedInvoiceLine, invoiceTicketDate, issuerIvaLegend, formatAfipDate, renderNoticeHtml } from './receipt-format.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -384,9 +384,14 @@ export async function renderDayZHtml(summary, restaurantData) {
  * @param {object} orderData - The data for the order.
  * @param {object} restaurantData - The data for the restaurant.
  * @param {string} [templateOverride] - Optional template name to override default.
+ * @param {string} [receiptType] - 'receipt' | 'order' | 'invoice'.
+ * @param {object} [invoiceData] - Invoice fields (receiptType 'invoice').
+ * @param {string|null} [printerName] - Printer whose paper width applies.
+ * @param {{ title: string, lines: string[] }|null} [notice] - Generic notice drawn at the top
+ *   of the ticket (KTD11). Nothing is drawn, and the output is unchanged, without one.
  * @returns {Promise<string>} The final HTML content as a string.
  */
-export async function generateHtmlFromTemplate(orderData, restaurantData, templateOverride = null, receiptType = "receipt", invoiceData, printerName = null) {
+export async function generateHtmlFromTemplate(orderData, restaurantData, templateOverride = null, receiptType = "receipt", invoiceData, printerName = null, notice = null) {
   // A comprobante never prints without its order. Checked before the try below, which would
   // otherwise bury this message under "Could not load or process template".
   if (receiptType === 'invoice' && !orderData) throw new Error(MISSING_ORDER_MESSAGE);
@@ -615,6 +620,12 @@ export async function generateHtmlFromTemplate(orderData, restaurantData, templa
       console.log('[QR Debug] Generated QR code HTML length:', qrCodeHtml?.length || 0);
       finalHtml = finalHtml.replace('{{invoiceData.qrCode}}', qrCodeHtml);
     }
+
+    // Last on purpose, with a replacer function: the notice text is server-built free text, so it
+    // must not be seen by the placeholder replaces above nor read `$` patterns as replacements.
+    // The marker sits right after the ticket's opening tag, so no notice leaves the HTML as it was.
+    const noticeHtml = renderNoticeHtml(notice);
+    finalHtml = finalHtml.replace('{{notice}}', () => noticeHtml);
 
     return finalHtml;
   } catch (error) {

@@ -564,3 +564,88 @@ describe('buildInvoice IIBB legend', () => {
     expect(Array.from(encodeDocument(blocks, ctx))).toContain(0xd6);
   });
 });
+
+// Generic notice the server builds (KTD11): drawn at the top of any ticket,
+// before the usual header. Text is already final, the agent only lays it out.
+describe('notice at the top of a ticket', () => {
+  const notice = { title: 'ATRASADA', lines: ['Comandado a las: 21:10', 'Hora actual: 21:35'] };
+  const order = { dailyOrderNumber: 42, table: '4', waiter: { name: 'Ana' }, createdAt: '2026-09-29T20:00:00Z', items: items(2), orderTotal: 2000 };
+  const restaurant = { name: 'Pentos' };
+  const ctx = layoutContext({ paper: '80mm' });
+  const noticeTexts = (blocks) => texts(blocks).map((t) => t.trim()).filter((t) => t && !/^[-=]+$/.test(t));
+
+  const documents = {
+    comanda: { build: buildOrder, input: { order, restaurant }, header: '#42' },
+    ACTUALIZACION: { build: buildOrderUpdate, input: { order, restaurant, lines: [{ kind: 'add', quantity: 1, name: 'Flan' }] }, header: '** ACTUALIZACION **' },
+    precuenta: { build: buildReceipt, input: { order, restaurant }, header: 'Pentos' },
+    factura: { build: buildInvoice, input: { order, restaurant, invoiceData }, header: 'Pentos' },
+    'nota de credito': { build: buildInvoice, input: { order, restaurant, invoiceData: creditNoteData }, header: 'Pentos' },
+  };
+
+  for (const [name, { build, input, header }] of Object.entries(documents)) {
+    describe(name, () => {
+      it('Covers AE4: starts with the title and the lines, in order, before the usual header', () => {
+        const blocks = build({ ...input, notice }, ctx);
+        expect(noticeTexts(blocks).slice(0, 3)).toEqual(['ATRASADA', 'Comandado a las: 21:10', 'Hora actual: 21:35']);
+        const headerAt = indexOf(blocks, (b) => b.type === 'text' && b.text.includes(header));
+        const lastLineAt = indexOf(blocks, (b) => b.type === 'text' && b.text.includes('Hora actual: 21:35'));
+        expect(lastLineAt).toBeGreaterThan(-1);
+        expect(headerAt).toBeGreaterThan(lastLineAt);
+      });
+
+      it('draws the title bigger and bold, the lines at body size', () => {
+        const blocks = build({ ...input, notice }, ctx);
+        const title = blocks.find((b) => b.type === 'text' && b.text.includes('ATRASADA'));
+        expect(title.bold).toBe(true);
+        expect(title.height).toBeGreaterThanOrEqual(2);
+      });
+
+      it('without a notice the blocks are the ones of the ticket with no notice field', () => {
+        const plain = build(input, ctx);
+        // Anchored to the ticket's own first line, so a notice that leaks in (even an empty
+        // band or a lone rule) shows up instead of comparing the output with itself.
+        expect(plain[0]).toMatchObject({ type: 'text' });
+        expect(plain[0].text.trim()).toBe(header);
+        for (const empty of [undefined, null, {}, { title: '', lines: [] }, { title: '   ', lines: ['', '  '] }, 'ATRASADA', 5]) {
+          expect(build({ ...input, notice: empty }, ctx)).toEqual(plain);
+        }
+      });
+
+      it('a title with no lines prints just the title', () => {
+        const plain = build(input, ctx);
+        const blocks = build({ ...input, notice: { title: 'ATRASADA' } }, ctx);
+        expect(noticeTexts(blocks).slice(0, 2)).toEqual(['ATRASADA', noticeTexts(plain)[0]]);
+        const extra = blocks.length - plain.length;
+        expect(extra).toBeGreaterThan(0);
+        expect(blocks.slice(extra)).toEqual(plain);
+        // Exactly the title band and the rule that closes the notice: no placeholder line in between.
+        expect(texts(blocks.slice(0, extra)).map((t) => t.trim())).toEqual(['ATRASADA', '-'.repeat(ctx.cols)]);
+      });
+    });
+  }
+
+  it('a line longer than the paper wraps into several lines and loses no text', () => {
+    const narrow = layoutContext({ paper: '58mm' });
+    const long = 'Comandado a las 21:10 para la mesa de la terraza del fondo junto al ventanal grande';
+    const blocks = buildOrder({ order, notice: { title: 'ATRASADA', lines: [long, 'Hora actual: 21:35'] } }, narrow);
+    const before = texts(blocks).findIndex((t) => t.includes('Hora actual'));
+    const shown = texts(blocks).slice(0, before + 1);
+    expect(shown.join(' ').replace(/\s+/g, ' ')).toContain(long);
+    expect(shown.length).toBeGreaterThan(3);
+    for (const b of blocks.slice(0, before + 1)) expect(b.text.length).toBeLessThanOrEqual(narrow.cols);
+  });
+
+  it('a single word longer than the paper is split, not cut', () => {
+    const narrow = layoutContext({ paper: '58mm' });
+    const word = 'A'.repeat(70);
+    const blocks = buildOrder({ order, notice: { title: 'T', lines: [word] } }, narrow);
+    const joined = texts(blocks).join('').replace(/\s/g, '');
+    expect(joined).toContain(word);
+  });
+
+  it('a title longer than the paper wraps too', () => {
+    const narrow = layoutContext({ paper: '58mm' });
+    const blocks = buildOrder({ order, notice: { title: 'PEDIDO MUY ATRASADO EN COCINA' } }, narrow);
+    expect(texts(blocks).join(' ').replace(/\s+/g, ' ')).toContain('PEDIDO MUY ATRASADO EN COCINA');
+  });
+});

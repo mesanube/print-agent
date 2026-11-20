@@ -16,6 +16,7 @@ import { layoutContext, buildReceipt, buildInvoice, buildOrder, buildOrderUpdate
 import { encodeDocument } from './text/text-encoder.js';
 import { buildTextTestPage } from './text/test-page.js';
 import { logoCache, logoMaxWidth } from './text/logo-cache.js';
+import { renderNoticeHtml } from './receipt-format.js';
 
 const TRANSPORTS = { gdi: printBitmapGdi, raw: printBitmapRaw };
 
@@ -400,9 +401,9 @@ export async function printReceipt(data, printerName = null, timing = null) {
   const orderData = data.order || data;
   const effectivePrinter = printerName || getSelectedPrinter();
   if (usesText(effectivePrinter)) {
-    return printText(buildReceipt, { order: orderData, restaurant }, effectivePrinter, timing);
+    return printText(buildReceipt, { order: orderData, restaurant, notice: data.notice }, effectivePrinter, timing);
   }
-  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-receipt.html', "receipt", undefined, effectivePrinter);
+  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-receipt.html', "receipt", undefined, effectivePrinter, data.notice);
   await printHtml(html, effectivePrinter, timing);
 }
 
@@ -411,10 +412,10 @@ export async function printOrder(data, printerName = null, timing = null) {
   const orderData = data.order || data;
   const effectivePrinter = printerName || getSelectedPrinter();
   if (usesText(effectivePrinter)) {
-    return printText(buildOrder, { order: orderData, restaurant }, effectivePrinter, timing);
+    return printText(buildOrder, { order: orderData, restaurant, notice: data.notice }, effectivePrinter, timing);
   }
   // Use modern-order.html template for kitchen orders
-  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-order.html', "order", undefined, effectivePrinter);
+  const html = await generateHtmlFromTemplate(orderData, restaurant, 'modern-order.html', "order", undefined, effectivePrinter, data.notice);
   return printHtml(html, effectivePrinter, timing);
 }
 
@@ -442,18 +443,13 @@ export function updateChitHeaderHtml(order, now) {
 
 // Mirrored in text/documents.js buildOrderUpdate (text mode). Change both.
 /**
- * Print a kitchen UPDATE chit (Windows). Generates minimal inline HTML
- * matching the unix chit format and routes through the standard printHtml
- * pipeline. No template file in v1 — keeps the surface small.
+ * HTML of the kitchen UPDATE chit (Windows): minimal inline page matching the unix chit
+ * format, no template file in v1 -- keeps the surface small. The generic notice (KTD11),
+ * when there is one, sits above the ACTUALIZACION header.
+ * @param {{ order: object, lines: object[], notice?: object|null, now?: Date }} input
+ * @returns {string}
  */
-export async function printOrderUpdate(data, printerName = null, timing = null) {
-  const order = data.order || {};
-  const lines = Array.isArray(data.lines) ? data.lines : [];
-  if (usesText(printerName)) {
-    return printText(buildOrderUpdate, { order, lines, restaurant: data.restaurant }, printerName, timing);
-  }
-  const now = new Date();
-
+export function renderOrderUpdateHtml({ order, lines, notice = null, now = new Date() }) {
   const lineClass = (kind) => {
     if (kind === 'cancel') return 'line cancel';
     if (kind === 'modify') return 'line modify';
@@ -558,7 +554,7 @@ export async function printOrderUpdate(data, printerName = null, timing = null) 
   </style>
 </head>
 <body>
-  <div class="chit">
+  <div class="chit">${renderNoticeHtml(notice)}
     <div class="header">
       <h2>** ACTUALIZACION **</h2>
       <h2>#${escapeHtml(order.dailyOrderNumber || '--')}</h2>
@@ -571,18 +567,32 @@ export async function printOrderUpdate(data, printerName = null, timing = null) 
 </body>
 </html>`;
 
+  return html;
+}
+
+/**
+ * Print a kitchen UPDATE chit (Windows). Routes the inline HTML through the standard
+ * printHtml pipeline, or the text document in text mode.
+ */
+export async function printOrderUpdate(data, printerName = null, timing = null) {
+  const order = data.order || {};
+  const lines = Array.isArray(data.lines) ? data.lines : [];
+  if (usesText(printerName)) {
+    return printText(buildOrderUpdate, { order, lines, restaurant: data.restaurant, notice: data.notice }, printerName, timing);
+  }
+  const html = renderOrderUpdateHtml({ order, lines, notice: data.notice });
   return printHtml(html, printerName, timing);
 }
 
 export async function printInvoice(data, printerName = null, timing = null) {
 
-  const { restaurant, order, invoiceData } = data
+  const { restaurant, order, invoiceData, notice } = data
   const effectivePrinter = printerName || getSelectedPrinter();
   if (usesText(effectivePrinter)) {
-    return printText(buildInvoice, { order, restaurant, invoiceData }, effectivePrinter, timing);
+    return printText(buildInvoice, { order, restaurant, invoiceData, notice }, effectivePrinter, timing);
   }
 
-  const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', "invoice", invoiceData, effectivePrinter);
+  const html = await generateHtmlFromTemplate(order, restaurant, 'modern-invoice.html', "invoice", invoiceData, effectivePrinter, notice);
 
   await printHtml(html, effectivePrinter, timing);
 }

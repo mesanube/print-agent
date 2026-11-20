@@ -255,3 +255,46 @@ export function setRegisterId(registerId) {
 export function getRegisterId() {
   return store.get('registerId', null);
 }
+
+// --- Direct jobs link (print agent link to the Mesanube server) ---
+// `installationId` identifies this install to the server and is created once;
+// it is never cleared, not even when the link is revoked. The link record holds
+// the credential (token) and the ids it was issued for. Callers outside
+// direct-jobs/link-store.js should not read it: the token never leaves the
+// agent process.
+
+export function setInstallationId(installationId) {
+  store.set('installationId', installationId);
+  console.log('[Settings] Installation id saved');
+}
+
+export function getInstallationId() {
+  return store.get('installationId', null);
+}
+
+export function setPrintAgentLink(link) {
+  if (link) {
+    store.set('printAgentLink', link);
+    console.log('[Settings] Print agent link saved');
+  } else {
+    store.delete('printAgentLink');
+    console.log('[Settings] Print agent link cleared');
+  }
+}
+
+export function getPrintAgentLink() {
+  return store.get('printAgentLink', null);
+}
+
+// --- Direct jobs state ---
+// jobIds this agent printed from the server's poll (last 24 h) and the queue of
+// acks the server has not confirmed yet. Written only by
+// direct-jobs/printed-jobs.js, which owns the shape and the pruning.
+
+export function getDirectJobsState() {
+  return store.get('directJobsState', null);
+}
+
+export function setDirectJobsState(state) {
+  store.set('directJobsState', state);
+}

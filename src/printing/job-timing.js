@@ -1,4 +1,5 @@
 import { logToFile } from '../core/file-log.js';
+import { runWithBudget } from './worker/time-budget.js';
 
 // Per-job stage timings (R3): one structured log line per print job so a
 // before/after comparison on a real cash-register PC is a matter of reading
@@ -60,4 +61,24 @@ export function startJobTiming(job, { now = () => performance.now(), log = logTo
       return result;
     },
   };
+}
+
+/**
+ * Runs one print job with its stage timings (R3). The timing line is logged on
+ * success and on failure alike, so a failed job still shows how far it got.
+ * Shared by the HTTP routes and the direct-jobs runner.
+ * @param {string} job Document kind, e.g. 'receipt', 'order'.
+ * @param {(timing: ReturnType<typeof startJobTiming>) => Promise<void>} print
+ */
+export async function runTimedJob(job, print) {
+  const timing = startJobTiming(job);
+  try {
+    // One time budget for the whole request: queue wait, capture, printer
+    // calls and write all draw from it (KTD2).
+    await runWithBudget(() => print(timing));
+    timing.finish();
+  } catch (error) {
+    timing.finish({ error });
+    throw error;
+  }
 }

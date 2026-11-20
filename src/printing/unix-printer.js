@@ -6,6 +6,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { getSelectedPrinter } from '../core/store.js';
 import { getSystemPrinters } from './printer-manager.js';
+import { normalizeNotice } from './receipt-format.js';
 
 const execAsync = promisify(exec);
 
@@ -43,6 +44,14 @@ async function printWithSystemCommand(text, printerName) {
   }
 }
 
+// Generic notice (KTD11) as plain lines for the top of a ticket, or '' without one. The unix path
+// prints raw text and leaves the wrapping to the printer. Mirrors renderNoticeHtml and DocBuilder.notice.
+function noticeText(notice) {
+  const n = normalizeNotice(notice);
+  if (!n) return '';
+  return `${[n.title, ...n.lines].filter(Boolean).join('\n')}\n================\n`;
+}
+
 // Banner and customer data of a delivery / para llevar / mostrador order, or ''.
 function destinationBannerText(order) {
   const title = { delivery: 'DELIVERY', takeout: 'PARA LLEVAR', counter: 'MOSTRADOR' }[order.orderType];
@@ -63,7 +72,7 @@ export async function printReceipt(data, printerName = null) {
   const restaurant = data.restaurant;
   const orderData = data.order || data;
   const now = new Date();
-  let receiptText = `${restaurant?.name || 'Restaurant'}
+  let receiptText = `${noticeText(data.notice)}${restaurant?.name || 'Restaurant'}
 ${restaurant?.address || ''}
 ================
 
@@ -127,7 +136,7 @@ export async function printOrder(data, printerName = null) {
   if (banner) headerLines.unshift(banner.trimEnd());
   else if (orderData.deliveryName) headerLines.push(`Nombre: ${orderData.deliveryName}`);
 
-  let orderText = `
+  let orderText = `${noticeText(data.notice)}
 ================
   #${orderData.dailyOrderNumber || orderData.orderNumber || '--'}
 ================
@@ -201,7 +210,7 @@ export async function printOrderUpdate(data, printerName = null) {
     destinationText += `Llamador: ${order.callButton}\n`;
   }
 
-  let chit = `
+  let chit = `${noticeText(data.notice)}
 ================
 *** ACTUALIZACION ***
   #${order.dailyOrderNumber || '--'}

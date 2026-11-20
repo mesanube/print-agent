@@ -18,43 +18,14 @@ import {
   getRegisterId, setRegisterId,
   getPrinterExplicitlySelected, selectPrinterByOperator,
 } from '../core/store.js';
-import { startJobTiming } from '../printing/job-timing.js';
+import os from 'os';
+import { getOrCreateInstallationId, getPublicLink, saveLink } from '../direct-jobs/link-store.js';
+import { normalizeAllowedApiUrl } from '../direct-jobs/api-url-allowlist.js';
+import { runTimedJob } from '../printing/job-timing.js';
+import { isDuplicateJob, recordJob, releaseJob } from '../printing/job-dedup.js';
 import { getPendingUpdateVersion } from '../core/auto-updater.js';
 import { runWithBudget, PRINT_TIMEOUT_CODE } from '../printing/worker/time-budget.js';
 import { printTestPage, printReceipt, printOrder, printOrderUpdate, printInvoice, printCashClose, printDayZ, printCalibrationPage } from '../printing/index.js';
-
-// In-memory idempotency cache for print jobs, keyed by a generic `jobId`.
-// Covers kitchen comandas/updates (jobId = kitchenTicketId) AND the SSE
-// fan-out receipt/invoice/NC jobs. Protects against an SSE replay, a manual
-// reprint racing through twice, or two machines sharing the same printer name.
-// Short TTL — long enough to absorb a network retry, short enough that
-// intentional reprints later (a fresh jobId) aren't blocked.
-const PRINT_JOB_TTL_MS = 5 * 60 * 1000;
-const printedJobs = new Map(); // jobId → printedAt timestamp
-
-const isDuplicateJob = (jobId) => {
-  if (!jobId) return false;
-  const printedAt = printedJobs.get(jobId);
-  if (!printedAt) return false;
-  if (Date.now() - printedAt > PRINT_JOB_TTL_MS) {
-    printedJobs.delete(jobId);
-    return false;
-  }
-  return true;
-};
-
-const recordJob = (jobId) => {
-  if (!jobId) return;
-  printedJobs.set(jobId, Date.now());
-  // Best-effort eviction so the map can't grow unbounded over a long
-  // uptime — sweep entries past TTL on each insert.
-  if (printedJobs.size > 256) {
-    const cutoff = Date.now() - PRINT_JOB_TTL_MS;
-    for (const [id, ts] of printedJobs) {
-      if (ts < cutoff) printedJobs.delete(id);
-    }
-  }
-};
 
 // A stuck job answers with the same 500 and body shape as any print failure,
 // plus a `code` the client uses to tell the user the printer did not respond
@@ -62,43 +33,49 @@ const recordJob = (jobId) => {
 const printErrorBody = (body, error) =>
   (error?.code === PRINT_TIMEOUT_CODE ? { ...body, code: PRINT_TIMEOUT_CODE } : body);
 
-// Runs one print job with its stage timings (R3). The timing line is logged
-// on success and on failure alike, so a failed job still shows how far it got.
-async function runTimedJob(job, print) {
-  const timing = startJobTiming(job);
-  try {
-    // One time budget for the whole request: queue wait, capture, printer
-    // calls and write all draw from it (KTD2).
-    await runWithBudget(() => print(timing));
-    timing.finish();
-  } catch (error) {
-    timing.finish({ error });
-    throw error;
-  }
-}
-
 export function createApi(options) {
   const { isDevelopmentMode, getCurrentPort, appVersion } = options;
   const app = new Hono();
 
+  // The origins allowed to call the agent from a browser. Shared by the cors()
+  // middleware (response headers) and by the guard on state-changing routes.
+  const allowedOrigin = (origin) => {
+    // Allow requests with no origin (curl, native apps, Postman, etc.)
+    if (!origin) return origin;
+
+    // Allow production and staging domains
+    if (origin === 'https://app.mesanube.ar') return origin;
+    if (origin === 'https://api.mesanube.ar') return origin;
+
+    // Allow localhost for development (any port)
+    if (origin.startsWith('http://localhost:')) return origin;
+    if (origin.startsWith('http://127.0.0.1:')) return origin;
+
+    // Log and reject unknown origins
+    console.warn(`[CORS] Rejected origin: ${origin}`);
+    return null;
+  };
+
+  // cors() only sets response headers, it never rejects a request, and a
+  // text/plain POST needs no preflight, so on its own it does not stop another
+  // web page from changing agent state. This guard refuses a foreign Origin
+  // (403) and any body that is not application/json (415, which also forces a
+  // browser to preflight). Requests without an Origin header keep working.
+  const requireTrustedJsonRequest = async (c, next) => {
+    const origin = c.req.header('Origin');
+    if (origin && !allowedOrigin(origin)) {
+      return c.json({ error: 'Origin not allowed' }, 403);
+    }
+    const contentType = (c.req.header('Content-Type') || '').split(';')[0].trim().toLowerCase();
+    if (contentType !== 'application/json') {
+      return c.json({ error: 'Content-Type must be application/json' }, 415);
+    }
+    return next();
+  };
+
   // Enable CORS for all endpoints
   app.use('*', cors({
-    origin: (origin) => {
-      // Allow requests with no origin (curl, native apps, Postman, etc.)
-      if (!origin) return origin;
-
-      // Allow production and staging domains
-      if (origin === 'https://app.mesanube.ar') return origin;
-      if (origin === 'https://api.mesanube.ar') return origin;
-
-      // Allow localhost for development (any port)
-      if (origin.startsWith('http://localhost:')) return origin;
-      if (origin.startsWith('http://127.0.0.1:')) return origin;
-
-      // Log and reject unknown origins
-      console.warn(`[CORS] Rejected origin: ${origin}`);
-      return null;
-    },
+    origin: allowedOrigin,
     allowMethods: ['GET', 'POST', 'PUT'],
     allowHeaders: ['Content-Type', 'Authorization'],
     exposeHeaders: ['Content-Length', 'X-Request-ID']
@@ -119,7 +96,13 @@ export function createApi(options) {
       selectedPrinter: getSelectedPrinter(),
       printerExplicitlySelected: getPrinterExplicitlySelected(),
       registerId: getRegisterId(),
-      printerTransports: getPrinterTransports()
+      printerTransports: getPrinterTransports(),
+      // Direct jobs: the browser links only agents that announce this
+      // capability (KTD16). `link` has ids only, never the token.
+      installationId: getOrCreateInstallationId(),
+      hostname: os.hostname(),
+      link: getPublicLink(),
+      capabilities: ['direct-jobs']
     });
   });
 
@@ -279,6 +262,33 @@ export function createApi(options) {
     }
   });
 
+  // POST /link: store the credential the Mesanube server issued for this
+  // install so the agent can fetch its print jobs (KTD1). The API url must be on
+  // the fixed allowlist (KTD3). The token is never echoed back, and there is no
+  // local unlink: unlinking is a revocation on the server (KTD14).
+  const nonEmptyString = (value) => typeof value === 'string' && value.length > 0 && value.length <= 2048;
+  app.post('/link', requireTrustedJsonRequest, async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return c.json({ error: 'Invalid link body' }, 400);
+    }
+    const { token, apiBaseUrl, agentId, organizationId, locationId, registerId } = body;
+    if (![token, agentId, organizationId, locationId].every(nonEmptyString)) {
+      return c.json({ error: 'token, agentId, organizationId and locationId are required strings' }, 400);
+    }
+    if (registerId != null && !nonEmptyString(registerId)) {
+      return c.json({ error: 'registerId must be a string or null' }, 400);
+    }
+    const allowedApiUrl = normalizeAllowedApiUrl(apiBaseUrl);
+    if (!allowedApiUrl) {
+      console.warn('[Link] Rejected link to a disallowed API url');
+      return c.json({ error: 'apiBaseUrl is not allowed' }, 400);
+    }
+    saveLink({ token, apiBaseUrl: allowedApiUrl, agentId, organizationId, locationId, registerId });
+    console.log('[Link] Linked to', allowedApiUrl, 'as agent', agentId);
+    return c.json({ success: true, link: getPublicLink() });
+  });
+
   // Test endpoint (conditionally enabled)
   app.post('/test', async (c) => {
     if (!isDevelopmentMode) {
@@ -327,7 +337,7 @@ export function createApi(options) {
       try {
         await runTimedJob('receipt', (timing) => printReceipt(requestData, printerName, timing));
       } catch (error) {
-        if (jobId) printedJobs.delete(jobId);
+        if (jobId) releaseJob(jobId);
         throw error;
       }
       return c.json({ success: true, message: 'Receipt printed successfully' });
@@ -384,7 +394,7 @@ export function createApi(options) {
       try {
         await runTimedJob('order', (timing) => printOrder(requestData, printerName, timing));
       } catch (error) {
-        if (kitchenTicketId) printedJobs.delete(kitchenTicketId);
+        if (kitchenTicketId) releaseJob(kitchenTicketId);
         throw error;
       }
       return c.json({ success: true, message: 'Order printed successfully' });
@@ -414,7 +424,7 @@ export function createApi(options) {
       try {
         await runTimedJob('order-update', (timing) => printOrderUpdate(requestData, printerName, timing));
       } catch (error) {
-        if (kitchenTicketId) printedJobs.delete(kitchenTicketId);
+        if (kitchenTicketId) releaseJob(kitchenTicketId);
         throw error;
       }
       return c.json({ success: true, message: 'Update chit printed successfully' });
@@ -442,7 +452,7 @@ export function createApi(options) {
       try {
         await runTimedJob('invoice', (timing) => printInvoice(requestData, printerName, timing));
       } catch (error) {
-        if (jobId) printedJobs.delete(jobId);
+        if (jobId) releaseJob(jobId);
         throw error;
       }
       return c.json({ success: true, message: 'Invoice printed successfully' });
