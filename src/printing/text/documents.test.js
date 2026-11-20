@@ -242,6 +242,58 @@ describe('consumo interno on the cash close and the day Z', () => {
   }
 });
 
+describe('anulaciones on the cash close', () => {
+  const close = (cancellations, ctx = layoutContext()) =>
+    buildCashClose({ summary: { sales: { total: 5000, byMethod: [] }, cancellations }, restaurant: { name: 'Bar' } }, ctx);
+  const rowOf = (blocks, label) => texts(blocks).find((t) => t.startsWith(label));
+  const totals = { orderCount: 2, unitCount: 5, cost: 1200, costIncomplete: false, saleValue: 5000 };
+
+  it('prints orders, units, what it would have cost and sold for', () => {
+    const blocks = close(totals);
+    expect(has(blocks, 'Anulaciones (no afectan la venta)')).toBe(true);
+    expect(rowOf(blocks, 'Pedidos').endsWith('2')).toBe(true);
+    expect(rowOf(blocks, 'Unidades').endsWith('5')).toBe(true);
+    expect(rowOf(blocks, 'Costo que hubiera tenido').endsWith('$1.200,00')).toBe(true);
+    expect(rowOf(blocks, 'Venta que hubiera tenido').endsWith('$5.000,00')).toBe(true);
+  });
+
+  it('comes after the sales block and before the aportes', () => {
+    const blocks = close(totals);
+    const at = (fragment) => indexOf(blocks, (b) => b.type === 'text' && b.text.includes(fragment));
+    expect(at('Anulaciones (no afectan la venta)')).toBeGreaterThan(at('Total ventas'));
+    expect(at('Anulaciones (no afectan la venta)')).toBeLessThan(at('Aportes'));
+  });
+
+  it('prints "Sin anulaciones" when the shift had none', () => {
+    const blocks = close({ orderCount: 0, unitCount: 0, cost: 0, costIncomplete: false, saleValue: 0 });
+    expect(has(blocks, 'Anulaciones (no afectan la venta)')).toBe(true);
+    expect(has(blocks, 'Sin anulaciones')).toBe(true);
+    expect(has(blocks, 'Costo que hubiera tenido')).toBe(false);
+  });
+
+  it('a summary without the object prints as before, with no block and no error', () => {
+    const blocks = close(undefined);
+    expect(has(blocks, 'Anulaciones')).toBe(false);
+    expect(has(blocks, 'Total ventas')).toBe(true);
+  });
+
+  it('marks an incomplete cost, and reads "sin costo" when no cancelled unit had one', () => {
+    expect(rowOf(close({ ...totals, costIncomplete: true }), 'Costo que hubiera tenido')).toMatch(/\$1\.200,00 \(incompleto\)$/);
+    expect(rowOf(close({ ...totals, cost: 0, costIncomplete: true }), 'Costo que hubiera tenido')).toMatch(/sin costo$/);
+  });
+
+  it('fits the paper columns on 58mm even with a large amount and the incomplete mark', () => {
+    const ctx = layoutContext({ paper: '58mm' });
+    const blocks = close({ orderCount: 12, unitCount: 40, cost: 1234567.89, costIncomplete: true, saleValue: 9876543.21 }, ctx);
+    // The title wraps on 58mm, so find the section by its first word.
+    const start = indexOf(blocks, (b) => b.type === 'text' && b.text.includes('Anulaciones'));
+    const end = indexOf(blocks, (b) => b.type === 'text' && b.text.includes('Aportes'));
+    const section = blocks.slice(start, end).filter((b) => b.type === 'text');
+    expect(section.length).toBeGreaterThanOrEqual(5);
+    for (const b of section) expect(b.text.length).toBeLessThanOrEqual(b.width === 2 ? ctx.cols / 2 : ctx.cols);
+  });
+});
+
 const containsBytes = (arr, seq) => arr.some((_, i) => seq.every((v, j) => arr[i + j] === v));
 
 // Width in dots of the first GS v 0 raster image in the output.
