@@ -404,6 +404,30 @@ function internalConsumptionRows(doc, sales) {
   doc.row('Valorizado', money(ic.totalCost));
 }
 
+// Anulaciones of the shift, frozen at close (see cancellationsBlock in
+// template-manager.js, which this mirrors). Not a sale. An unknown cost reads
+// "sin costo", a partial one "(incompleto)". An absent object prints nothing (a
+// close saved before the field, or an old server); zeros print "Sin anulaciones".
+function cancellationsRows(doc, c) {
+  if (!c || typeof c !== 'object') return;
+  const orders = Number(c.orderCount) || 0;
+  const units = Number(c.unitCount) || 0;
+  doc.rule();
+  // paragraph(), not line(): the title is 33 characters and 58mm paper has 32 columns.
+  doc.paragraph('Anulaciones (no afectan la venta)', { bold: true });
+  if (orders <= 0 && units <= 0) {
+    doc.line('Sin anulaciones');
+    return;
+  }
+  const cost = Number(c.cost) || 0;
+  const costText = c.costIncomplete ? (cost > 0 ? `${money(cost)} (incompleto)` : 'sin costo') : money(cost);
+  doc.row('Pedidos', String(orders));
+  doc.row('Unidades', String(units));
+  // field(): with the "(incompleto)" mark the value can outgrow the row on 58mm, so it stacks under the label.
+  doc.field('Costo que hubiera tenido', costText);
+  doc.row('Venta que hubiera tenido', money(c.saleValue));
+}
+
 function movementRows(doc, items) {
   if (!items || items.length === 0) {
     doc.line('Sin movimientos');
@@ -454,6 +478,7 @@ export function buildCashClose({ summary = {}, restaurant = {} }, ctx) {
   doc.row('Total ventas', money(sales.total), { bold: true });
   discountSummary(doc, sales);
   internalConsumptionRows(doc, sales);
+  cancellationsRows(doc, summary.cancellations);
 
   const cashIn = summary.cashIn || { total: 0, items: [] };
   const cashOut = summary.cashOut || { total: 0, items: [] };
