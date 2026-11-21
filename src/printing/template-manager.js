@@ -112,8 +112,8 @@ function cancellationsBlock(c) {
   return title +
     `<div class="row"><span class="label">Pedidos</span><span class="amount">${orders}</span></div>` +
     `<div class="row"><span class="label">Items</span><span class="amount">${units}</span></div>` +
-    moneyRowText('Costo que hubiera representado', costText) +
-    moneyRow('Precio de venta que hubiera representado', c.saleValue || 0);
+    moneyRowText('Costo', costText) +
+    moneyRow('Precio de venta', c.saleValue || 0);
 }
 
 // Detail lines for a paid-in / paid-out section. Every label/meta is escaped.

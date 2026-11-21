@@ -251,11 +251,11 @@ describe('anulaciones on the cash close', () => {
   it('prints orders, units, what it would have cost and sold for', () => {
     const blocks = close(totals);
     expect(has(blocks, 'Anulaciones (no afecta los numeros de ventas)')).toBe(true);
+    expect(has(blocks, 'hubiera')).toBe(false);
     expect(rowOf(blocks, 'Pedidos').endsWith('2')).toBe(true);
     expect(rowOf(blocks, 'Items').endsWith('5')).toBe(true);
-    expect(texts(blocks).join('\n')).toMatch(/Costo que hubiera representado\s+\$1\.200,00/);
-    // The label is long, so on narrow paper the value stacks under it: read label and value together.
-    expect(texts(blocks).join('\n')).toMatch(/Precio de venta que hubiera representado\s+\$5\.000,00/);
+    expect(texts(blocks).join('\n')).toMatch(/Costo\s+\$1\.200,00/);
+    expect(texts(blocks).join('\n')).toMatch(/Precio de venta\s+\$5\.000,00/);
   });
 
   it('comes after the sales block and before the aportes', () => {
@@ -269,7 +269,7 @@ describe('anulaciones on the cash close', () => {
     const blocks = close({ orderCount: 0, unitCount: 0, cost: 0, costIncomplete: false, saleValue: 0 });
     expect(has(blocks, 'Anulaciones (no afecta los numeros de ventas)')).toBe(true);
     expect(has(blocks, 'Sin anulaciones')).toBe(true);
-    expect(has(blocks, 'Costo que hubiera representado')).toBe(false);
+    expect(has(blocks, 'Costo')).toBe(false);
   });
 
   it('a summary without the object prints as before, with no block and no error', () => {
@@ -279,8 +279,8 @@ describe('anulaciones on the cash close', () => {
   });
 
   it('marks an incomplete cost, and reads "sin costo" when no cancelled unit had one', () => {
-    expect(texts(close({ ...totals, costIncomplete: true })).join('\n')).toMatch(/Costo que hubiera representado\s+\$1\.200,00 \(incompleto\)/);
-    expect(texts(close({ ...totals, cost: 0, costIncomplete: true })).join('\n')).toMatch(/Costo que hubiera representado\s+sin costo/);
+    expect(texts(close({ ...totals, costIncomplete: true })).join('\n')).toMatch(/Costo\s+\$1\.200,00 \(incompleto\)/);
+    expect(texts(close({ ...totals, cost: 0, costIncomplete: true })).join('\n')).toMatch(/Costo\s+sin costo/);
   });
 
   it('fits the paper columns on 58mm even with a large amount and the incomplete mark', () => {

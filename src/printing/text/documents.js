@@ -423,8 +423,8 @@ function cancellationsRows(doc, c) {
   const costText = c.costIncomplete ? (cost > 0 ? `${money(cost)} (incompleto)` : 'sin costo') : money(cost);
   doc.row('Pedidos', String(orders));
   doc.row('Items', String(units));
-  // The labels are long: when label and value do not fit on one row (58mm has 32 columns,
-  // the sale label alone is 40 characters) the label wraps and the value goes under it, on the right.
+  // The label is short, but an incomplete cost ("$1.234.567,89 (incompleto)") can still outgrow the row
+  // on 58mm (32 columns): then the label takes its own line and the value goes under it, on the right.
   const labeled = (label, value) => {
     if (label.length + 1 + value.length <= doc.ctx.cols) {
       doc.row(label, value);
@@ -433,8 +433,8 @@ function cancellationsRows(doc, c) {
       doc.row('', value);
     }
   };
-  labeled('Costo que hubiera representado', costText);
-  labeled('Precio de venta que hubiera representado', money(c.saleValue));
+  labeled('Costo', costText);
+  labeled('Precio de venta', money(c.saleValue));
 }
 
 function movementRows(doc, items) {
