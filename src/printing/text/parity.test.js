@@ -392,8 +392,8 @@ describe('HTML and text renderers print the same information', () => {
     const html = await renderCashCloseHtml(summary, restaurant);
     const blocks = buildCashClose({ summary, restaurant }, ctx);
     expectInBoth(html, blocks, [
-      'Anulaciones (no afectan la venta)', 'Pedidos', 'Unidades', 'Costo que hubiera tenido', '$1.200,00',
-      'Venta que hubiera tenido', '$5.000,00',
+      'Anulaciones (no afecta los numeros de ventas)', 'Pedidos', 'Items', 'Costo que hubiera representado', '$1.200,00',
+      'Precio de venta que hubiera representado', '$5.000,00',
     ]);
     expect(htmlText(html)).not.toContain('incompleto');
     expect(blocksText(blocks)).not.toContain('incompleto');
@@ -403,9 +403,9 @@ describe('HTML and text renderers print the same information', () => {
     const summary = { sales, cancellations: { orderCount: 0, unitCount: 0, cost: 0, costIncomplete: false, saleValue: 0 } };
     const html = await renderCashCloseHtml(summary, restaurant);
     const blocks = buildCashClose({ summary, restaurant }, ctx);
-    expectInBoth(html, blocks, ['Anulaciones (no afectan la venta)', 'Sin anulaciones']);
-    expect(htmlText(html)).not.toContain('Costo que hubiera tenido');
-    expect(blocksText(blocks)).not.toContain('Costo que hubiera tenido');
+    expectInBoth(html, blocks, ['Anulaciones (no afecta los numeros de ventas)', 'Sin anulaciones']);
+    expect(htmlText(html)).not.toContain('Costo que hubiera representado');
+    expect(blocksText(blocks)).not.toContain('Costo que hubiera representado');
   });
 
   it('cierre de un turno anterior a la funcion (sin el objeto): ninguno imprime el bloque', async () => {

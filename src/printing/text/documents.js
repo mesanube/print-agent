@@ -413,8 +413,8 @@ function cancellationsRows(doc, c) {
   const orders = Number(c.orderCount) || 0;
   const units = Number(c.unitCount) || 0;
   doc.rule();
-  // paragraph(), not line(): the title is 33 characters and 58mm paper has 32 columns.
-  doc.paragraph('Anulaciones (no afectan la venta)', { bold: true });
+  // paragraph(), not line(): the title is 45 characters and 58mm paper has 32 columns.
+  doc.paragraph('Anulaciones (no afecta los numeros de ventas)', { bold: true });
   if (orders <= 0 && units <= 0) {
     doc.line('Sin anulaciones');
     return;
@@ -422,10 +422,19 @@ function cancellationsRows(doc, c) {
   const cost = Number(c.cost) || 0;
   const costText = c.costIncomplete ? (cost > 0 ? `${money(cost)} (incompleto)` : 'sin costo') : money(cost);
   doc.row('Pedidos', String(orders));
-  doc.row('Unidades', String(units));
-  // field(): with the "(incompleto)" mark the value can outgrow the row on 58mm, so it stacks under the label.
-  doc.field('Costo que hubiera tenido', costText);
-  doc.row('Venta que hubiera tenido', money(c.saleValue));
+  doc.row('Items', String(units));
+  // The labels are long: when label and value do not fit on one row (58mm has 32 columns,
+  // the sale label alone is 40 characters) the label wraps and the value goes under it, on the right.
+  const labeled = (label, value) => {
+    if (label.length + 1 + value.length <= doc.ctx.cols) {
+      doc.row(label, value);
+    } else {
+      doc.paragraph(label);
+      doc.row('', value);
+    }
+  };
+  labeled('Costo que hubiera representado', costText);
+  labeled('Precio de venta que hubiera representado', money(c.saleValue));
 }
 
 function movementRows(doc, items) {

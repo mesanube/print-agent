@@ -103,7 +103,7 @@ function cancellationsBlock(c) {
   const orders = Number(c.orderCount) || 0;
   const units = Number(c.unitCount) || 0;
   const title = `<div class="divider"></div>` +
-    `<div class="section-title">Anulaciones (no afectan la venta)</div>`;
+    `<div class="section-title">Anulaciones (no afecta los numeros de ventas)</div>`;
   if (orders <= 0 && units <= 0) return `${title}<div class="muted">Sin anulaciones</div>`;
   const cost = Number(c.cost) || 0;
   const costText = c.costIncomplete
@@ -111,9 +111,9 @@ function cancellationsBlock(c) {
     : `$${formatPrice(cost)}`;
   return title +
     `<div class="row"><span class="label">Pedidos</span><span class="amount">${orders}</span></div>` +
-    `<div class="row"><span class="label">Unidades</span><span class="amount">${units}</span></div>` +
-    moneyRowText('Costo que hubiera tenido', costText) +
-    moneyRow('Venta que hubiera tenido', c.saleValue || 0);
+    `<div class="row"><span class="label">Items</span><span class="amount">${units}</span></div>` +
+    moneyRowText('Costo que hubiera representado', costText) +
+    moneyRow('Precio de venta que hubiera representado', c.saleValue || 0);
 }
 
 // Detail lines for a paid-in / paid-out section. Every label/meta is escaped.
