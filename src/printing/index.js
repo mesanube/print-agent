@@ -15,10 +15,14 @@ function wrapPrintError(message, error) {
 // page) through the Windows renderer path regardless of host OS. Dry-run
 // (PRINT_AGENT_DRY_RUN=1) lives there, so on macOS you can preview the HTML
 // receipts as PNGs/JPEGs without a connected printer or a Windows machine.
-// Windows-only features that reach the native binding (cash-close, day-Z,
-// calibration) stay gated on real `isWindows` below, since that module does
-// not exist off-Windows.
+// Day-Z and calibration stay gated on real `isWindows` below, since the native
+// binding they would reach does not exist off-Windows.
 const useWindowsPath = isWindows || process.env.USE_WINDOWS_PATH === '1';
+
+// The cash-close also takes the Windows renderer in a dry run: receipts always do,
+// so a dry run with only PRINT_AGENT_DRY_RUN=1 leaves their file in ~/print-agent-debug,
+// and the cash-close must not be the one ticket that silently prints nothing.
+const cashCloseViaWindows = useWindowsPath || process.env.PRINT_AGENT_DRY_RUN === '1';
 
 /**
  * Prints a receipt with order and restaurant data.
@@ -112,14 +116,16 @@ export async function printInvoice(data, printerName = null, timing = null) {
 
 /**
  * Prints a cash-close summary (resumen de cierre de caja).
- * The Unix path has no cash-close renderer yet, so this is Windows-only and
- * guarded by process.platform: on other platforms it is a logged no-op so dev
- * environments (macOS) do not invoke the Windows-only native binding.
+ * The Unix path has no cash-close renderer yet, so this goes through the Windows
+ * renderer: on other platforms it is a logged no-op unless USE_WINDOWS_PATH=1 or a
+ * dry run (PRINT_AGENT_DRY_RUN=1, which captures the ticket to a file), so a macOS
+ * dev environment never reaches a real printer through the Windows-only native
+ * binding.
  * @param {object} data - { restaurant, summary }
  * @param {string|null} printerName - Optional printer name to override default.
  */
 export async function printCashClose(data, printerName = null, timing = null) {
-  if (!isWindows) {
+  if (!cashCloseViaWindows) {
     console.log('[Print] cash-close printing is only supported on Windows; skipping on this platform');
     return;
   }
