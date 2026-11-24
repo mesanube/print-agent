@@ -404,6 +404,39 @@ function internalConsumptionRows(doc, sales) {
   doc.row('Valorizado', money(ic.totalCost));
 }
 
+// Anulaciones of the shift, frozen at close (see cancellationsBlock in
+// template-manager.js, which this mirrors). Not a sale. An unknown cost reads
+// "sin costo", a partial one "(incompleto)". An absent object prints nothing (a
+// close saved before the field, or an old server); zeros print "Sin anulaciones".
+function cancellationsRows(doc, c) {
+  if (!c || typeof c !== 'object') return;
+  const orders = Number(c.orderCount) || 0;
+  const units = Number(c.unitCount) || 0;
+  doc.rule();
+  // paragraph(), not line(): the title is 45 characters and 58mm paper has 32 columns.
+  doc.paragraph('Anulaciones (no afecta los numeros de ventas)', { bold: true });
+  if (orders <= 0 && units <= 0) {
+    doc.line('Sin anulaciones');
+    return;
+  }
+  const cost = Number(c.cost) || 0;
+  const costText = c.costIncomplete ? (cost > 0 ? `${money(cost)} (incompleto)` : 'sin costo') : money(cost);
+  doc.row('Pedidos', String(orders));
+  doc.row('Items', String(units));
+  // The label is short, but an incomplete cost ("$1.234.567,89 (incompleto)") can still outgrow the row
+  // on 58mm (32 columns): then the label takes its own line and the value goes under it, on the right.
+  const labeled = (label, value) => {
+    if (label.length + 1 + value.length <= doc.ctx.cols) {
+      doc.row(label, value);
+    } else {
+      doc.paragraph(label);
+      doc.row('', value);
+    }
+  };
+  labeled('Costo', costText);
+  labeled('Precio de venta', money(c.saleValue));
+}
+
 function movementRows(doc, items) {
   if (!items || items.length === 0) {
     doc.line('Sin movimientos');
@@ -454,6 +487,7 @@ export function buildCashClose({ summary = {}, restaurant = {} }, ctx) {
   doc.row('Total ventas', money(sales.total), { bold: true });
   discountSummary(doc, sales);
   internalConsumptionRows(doc, sales);
+  cancellationsRows(doc, summary.cancellations);
 
   const cashIn = summary.cashIn || { total: 0, items: [] };
   const cashOut = summary.cashOut || { total: 0, items: [] };

@@ -92,6 +92,30 @@ function internalConsumptionBlock(sales) {
     moneyRow('Valorizado', ic.totalCost || 0);
 }
 
+// Anulaciones block: cancelled orders and items of the shift, frozen at close. Not
+// a sale, so it says so. Cost is what the cancelled units would have cost (frozen
+// recipe cost): an unknown cost reads "sin costo" (never $0) and a partial one is
+// marked "(incompleto)". Mirrors cancellationsRows in text/documents.js. Absent
+// (a summary saved before this field, or an old server) prints nothing; present
+// with zeros prints "Sin anulaciones". Only numbers are printed, nothing typed.
+function cancellationsBlock(c) {
+  if (!c || typeof c !== 'object') return '';
+  const orders = Number(c.orderCount) || 0;
+  const units = Number(c.unitCount) || 0;
+  const title = `<div class="divider"></div>` +
+    `<div class="section-title">Anulaciones (no afecta los numeros de ventas)</div>`;
+  if (orders <= 0 && units <= 0) return `${title}<div class="muted">Sin anulaciones</div>`;
+  const cost = Number(c.cost) || 0;
+  const costText = c.costIncomplete
+    ? (cost > 0 ? `$${formatPrice(cost)} (incompleto)` : 'sin costo')
+    : `$${formatPrice(cost)}`;
+  return title +
+    `<div class="row"><span class="label">Pedidos</span><span class="amount">${orders}</span></div>` +
+    `<div class="row"><span class="label">Items</span><span class="amount">${units}</span></div>` +
+    moneyRowText('Costo', costText) +
+    moneyRow('Precio de venta', c.saleValue || 0);
+}
+
 // Detail lines for a paid-in / paid-out section. Every label/meta is escaped.
 function movementLines(items) {
   if (!items || items.length === 0) return '<div class="muted">Sin movimientos</div>';
@@ -168,7 +192,8 @@ export async function renderCashCloseHtml(summary, restaurantData) {
     salesByMethodLines(sales) +
     moneyRow('Total ventas', sales.total || 0, { emph: true }) +
     discountBlock(sales) +
-    internalConsumptionBlock(sales);
+    internalConsumptionBlock(sales) +
+    cancellationsBlock(summary.cancellations);
 
   // Paid-in / paid-out
   const cashIn = summary.cashIn || { total: 0, items: [] };

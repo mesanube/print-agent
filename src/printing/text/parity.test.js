@@ -385,4 +385,56 @@ describe('HTML and text renderers print the same information', () => {
       expect(blocksText(blocks)).not.toContain('Consumo interno');
     }
   });
+  const cancellations = { orderCount: 2, unitCount: 5, cost: 1200, costIncomplete: false, saleValue: 5000 };
+
+  it('cierre con anulaciones: ambos imprimen el bloque con las mismas cifras', async () => {
+    const summary = { sales, cancellations };
+    const html = await renderCashCloseHtml(summary, restaurant);
+    const blocks = buildCashClose({ summary, restaurant }, ctx);
+    expectInBoth(html, blocks, [
+      'Anulaciones (no afecta los numeros de ventas)', 'Pedidos', 'Items', 'Costo', '$1.200,00',
+      'Precio de venta', '$5.000,00',
+    ]);
+    expect(htmlText(html)).not.toContain('incompleto');
+    expect(blocksText(blocks)).not.toContain('incompleto');
+    // Short labels: no "que hubiera ..." wording on the ticket.
+    expect(htmlText(html)).not.toContain('hubiera');
+    expect(blocksText(blocks)).not.toContain('hubiera');
+  });
+
+  it('cierre con anulaciones en cero: ambos imprimen "Sin anulaciones" y ninguna cifra', async () => {
+    const summary = { sales, cancellations: { orderCount: 0, unitCount: 0, cost: 0, costIncomplete: false, saleValue: 0 } };
+    const html = await renderCashCloseHtml(summary, restaurant);
+    const blocks = buildCashClose({ summary, restaurant }, ctx);
+    expectInBoth(html, blocks, ['Anulaciones (no afecta los numeros de ventas)', 'Sin anulaciones']);
+    expect(htmlText(html)).not.toContain('Costo');
+    expect(blocksText(blocks)).not.toContain('Costo');
+  });
+
+  it('cierre de un turno anterior a la funcion (sin el objeto): ninguno imprime el bloque', async () => {
+    const summary = { sales };
+    const html = await renderCashCloseHtml(summary, restaurant);
+    const blocks = buildCashClose({ summary, restaurant }, ctx);
+    expect(htmlText(html)).not.toContain('Anulaciones');
+    expect(blocksText(blocks)).not.toContain('Anulaciones');
+    expect(htmlText(html)).not.toContain('Sin anulaciones');
+  });
+
+  it('cierre con costo incompleto: ambos lo marcan; sin ningun costo conocido dicen "sin costo"', async () => {
+    const partial = { sales, cancellations: { ...cancellations, costIncomplete: true } };
+    const none = { sales, cancellations: { ...cancellations, cost: 0, costIncomplete: true } };
+    for (const [summary, expected, absent] of [[partial, ['$1.200,00', '(incompleto)'], 'sin costo'], [none, ['sin costo'], '(incompleto)']]) {
+      const html = await renderCashCloseHtml(summary, restaurant);
+      const blocks = buildCashClose({ summary, restaurant }, ctx);
+      expectInBoth(html, blocks, expected);
+      expect(htmlText(html)).not.toContain(absent);
+      expect(blocksText(blocks)).not.toContain(absent);
+    }
+  });
+
+  it('el Z del dia no imprime anulaciones (solo el cierre de caja)', async () => {
+    const z = { businessDate: '2026-09-29', sales, cancellations };
+    expect(htmlText(await renderDayZHtml(z, restaurant))).not.toContain('Anulaciones');
+    expect(blocksText(buildDayZ({ summary: z, restaurant }, ctx))).not.toContain('Anulaciones');
+  });
 });
